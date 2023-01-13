@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.31729.503
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bsn.AsyncLambdaExpression", "bsn.AsyncLambdaExpression\bsn.AsyncLambdaExpression.csproj", "{D18E77B3-B4E3-4ABA-BC1A-02474AA9EBC7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bsn.AsyncLambdaExpression.Test", "bsn.AsyncLambdaExpression.Test\bsn.AsyncLambdaExpression.Test.csproj", "{64CCD54B-B3CC-4A05-B8B6-5FBEE9CD3228}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D18E77B3-B4E3-4ABA-BC1A-02474AA9EBC7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D18E77B3-B4E3-4ABA-BC1A-02474AA9EBC7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D18E77B3-B4E3-4ABA-BC1A-02474AA9EBC7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D18E77B3-B4E3-4ABA-BC1A-02474AA9EBC7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{64CCD54B-B3CC-4A05-B8B6-5FBEE9CD3228}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{64CCD54B-B3CC-4A05-B8B6-5FBEE9CD3228}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{64CCD54B-B3CC-4A05-B8B6-5FBEE9CD3228}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{64CCD54B-B3CC-4A05-B8B6-5FBEE9CD3228}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {AC872684-66D5-4B43-A55F-B583F8D8A30E}
+	EndGlobalSection
+EndGlobal
