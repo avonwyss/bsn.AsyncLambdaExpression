@@ -109,7 +109,11 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <Folder Include="Expressions\" />
+  </ItemGroup>
+  <ItemGroup>
     <Compile Include="AsyncExpressionExtensionTest.cs" />
+    <Compile Include="Collections\ImmutableStackTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

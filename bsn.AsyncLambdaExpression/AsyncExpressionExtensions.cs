@@ -7,9 +7,9 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
-using JetBrains.Annotations;
+using bsn.AsyncLambdaExpression.Expressions;
 
-using Seram.Web;
+using JetBrains.Annotations;
 
 namespace bsn.AsyncLambdaExpression {
 	public static class AsyncExpressionExtensions {
@@ -62,6 +62,18 @@ namespace bsn.AsyncLambdaExpression {
 
 		public static LambdaExpression Async(this LambdaExpression expression, Type delegateType) {
 			return Expression.Lambda(delegateType, new AsyncStateMachineBuilder(expression, delegateType.GetDelegateInvokeMethod().ReturnType).CreateStateMachineBody(), expression.Parameters);
+		}
+
+		internal static Expression RescopeVariables(this Expression expression, IEnumerable<ParameterExpression> unmanagedVariablesAndParameters) {
+			var finder = new VariableScopeFinder(unmanagedVariablesAndParameters);
+			finder.Visit(expression);
+			var setter = new VariableScopeSetter(finder.GetBlockVariables(), finder.IsIgnored, finder.IsToRemove);
+			return setter.Visit(expression);
+		}
+
+		internal static Expression Optimize(this Expression expression) {
+			var optimizer = new Optimizer();
+			return optimizer.Visit(expression);
 		}
 	}
 }

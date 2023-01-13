@@ -2,8 +2,8 @@
 using System.Linq;
 using System.Linq.Expressions;
 
-namespace bsn.AsyncLambdaExpression {
-	internal class OptimizeVisitor: ExpressionVisitor {
+namespace bsn.AsyncLambdaExpression.Expressions {
+	internal class Optimizer: ExpressionVisitor {
 		protected override Expression VisitBlock(BlockExpression node) {
 			var expressions = new List<Expression>(node.Expressions.Count * 2);
 			var variables = node.Variables.ToList();
@@ -37,7 +37,6 @@ namespace bsn.AsyncLambdaExpression {
 				// Restore last expression if it is an expression which was skipped over
 				expressions.Add(last);
 			}
-			// TODO: Check that variables are used in subtree
 			return expressions.Count == 0
 					? Expression.Default(node.Type)
 					: expressions.Count == 1 && node.Type == expressions[0].Type && variables.Count == 0

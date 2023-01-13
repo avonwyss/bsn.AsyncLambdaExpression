@@ -66,8 +66,13 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AsyncExpressionExtensions.cs" />
-    <Compile Include="AsyncStateMachineBuilder.OptimizeVisitor.cs" />
-    <Compile Include="AsyncStateMachineVisitor.cs" />
+    <Compile Include="AsyncState.cs" />
+    <Compile Include="AsyncStateMachineBuilder.cs" />
+    <Compile Include="AsyncStateMachineBuilder.ReorganizeVisitor.cs" />
+    <Compile Include="Collections\ImmutableStack.cs" />
+    <Compile Include="Expressions\Optimizer.cs" />
+    <Compile Include="Expressions\VariableScopeFinder.cs" />
+    <Compile Include="Expressions\VariableScopeSetter.cs" />
     <Compile Include="JetBrainsAnnotations.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ReferenceEqualityComparer.cs" />

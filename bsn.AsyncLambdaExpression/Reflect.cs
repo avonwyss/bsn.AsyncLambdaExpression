@@ -10,10 +10,9 @@ using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
 using System.Threading.Tasks;
 
-
 using JetBrains.Annotations;
 
-namespace Seram.Web {
+namespace bsn.AsyncLambdaExpression {
 	public static class Reflect<TType> {
 		// ReSharper disable once StaticMemberInGenericType
 		private static readonly ConcurrentDictionary<Type, Delegate> activators = new();
