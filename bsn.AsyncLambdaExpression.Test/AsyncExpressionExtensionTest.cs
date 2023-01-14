@@ -76,7 +76,37 @@ namespace bsn.AsyncLambdaExpression {
 		}
 
 		[Fact]
-		public async Task TestBinaryCompiled() {
+		public async Task TestBinarySyncSyncCompiled() {
+			var compiled = CompileAsyncLambda<int, int>(paraInput =>
+					Expression.Add(
+							Expression.Constant(1),
+							paraInput));
+			var result = await compiled(2).ConfigureAwait(false);
+			Assert.Equal(3, result);
+		}
+
+		[Fact]
+		public async Task TestBinaryAsyncSyncCompiled() {
+			var compiled = CompileAsyncLambda<int, int>(paraInput =>
+					Expression.Add(
+							Expression.Constant(Task.FromResult(1)).Await(false),
+							paraInput));
+			var result = await compiled(2).ConfigureAwait(false);
+			Assert.Equal(3, result);
+		}
+
+		[Fact]
+		public async Task TestBinarySyncAsyncCompiled() {
+			var compiled = CompileAsyncLambda<Task<int>, int>(paraInput =>
+					Expression.Add(
+							Expression.Constant(1),
+							paraInput.Await(false)));
+			var result = await compiled(Task.FromResult(2)).ConfigureAwait(false);
+			Assert.Equal(3, result);
+		}
+
+		[Fact]
+		public async Task TestBinaryAsyncAsyncCompiled() {
 			var compiled = CompileAsyncLambda<Task<int>, int>(paraInput =>
 					Expression.Add(
 							Expression.Constant(Task.FromResult(1)).Await(false),

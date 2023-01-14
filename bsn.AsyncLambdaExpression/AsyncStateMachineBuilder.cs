@@ -8,6 +8,8 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
+using bsn.AsyncLambdaExpression.Expressions;
+
 namespace bsn.AsyncLambdaExpression {
 	internal partial class AsyncStateMachineBuilder {
 		private static readonly ConcurrentDictionary<Type, (ConstructorInfo, MethodInfo, MethodInfo, PropertyInfo)> taskCompletionSourceInfos = new();
@@ -15,7 +17,7 @@ namespace bsn.AsyncLambdaExpression {
 		private static readonly PropertyInfo prop_Task_CompletedTask = typeof(Task).GetProperty(nameof(Task.CompletedTask));
 		private static readonly MethodInfo meth_Task_FromResultOfType = typeof(Task).GetMethod(nameof(Task.FromResult));
 
-		private static (ConstructorInfo ctor, MethodInfo methSetResult, MethodInfo methSetException, PropertyInfo propTask) GetTaskCompletionSourceInfo(Type type) {
+		internal static (ConstructorInfo ctor, MethodInfo methSetResult, MethodInfo methSetException, PropertyInfo propTask) GetTaskCompletionSourceInfo(Type type) {
 			return taskCompletionSourceInfos.GetOrAdd(type, static t => (
 					t.GetConstructor(new[] { typeof(TaskCreationOptions) }),
 					t.GetMethod(nameof(TaskCompletionSource<object>.SetResult)),
@@ -25,10 +27,22 @@ namespace bsn.AsyncLambdaExpression {
 		}
 
 		private readonly ConcurrentDictionary<Type, ParameterExpression> varAwaiter = new();
-		private readonly ParameterExpression varState;
-		private readonly ParameterExpression varTaskCompletionSource;
-		private readonly ParameterExpression varContinuation;
-		private readonly LabelTarget lblBreak;
+
+		internal ParameterExpression VarState {
+			get;
+		}
+
+		internal ParameterExpression VarTaskCompletionSource {
+			get;
+		}
+
+		internal ParameterExpression VarContinuation {
+			get;
+		}
+
+		internal LabelTarget LblBreak {
+			get;
+		}
 
 		public LambdaExpression Lambda {
 			get;
@@ -49,14 +63,14 @@ namespace bsn.AsyncLambdaExpression {
 			}
 			Lambda = lambda;
 			ResultType = resultType;
-			varState = Expression.Variable(typeof(int), "state");
-			varTaskCompletionSource = Expression.Variable(typeof(TaskCompletionSource<>).MakeGenericType(ResultType.GetAsyncReturnType() ?? typeof(object)), "taskCompletionSource");
-			varContinuation = Expression.Variable(typeof(Action), "continuation");
-			lblBreak = Expression.Label(typeof(void), ":break");
+			VarState = Expression.Variable(typeof(int), "state");
+			VarTaskCompletionSource = Expression.Variable(typeof(TaskCompletionSource<>).MakeGenericType(ResultType.GetAsyncReturnType() ?? typeof(object)), "taskCompletionSource");
+			VarContinuation = Expression.Variable(typeof(Action), "continuation");
+			LblBreak = Expression.Label(typeof(void), ":break");
 		}
 
 		public Expression CreateStateMachineBody() {
-			var (ctor_TaskCompletionSource, _, meth_TaskCompletionSource_SetException, prop_TaskCompletionSource_Task) = GetTaskCompletionSourceInfo(varTaskCompletionSource.Type);
+			var (ctor_TaskCompletionSource, _, meth_TaskCompletionSource_SetException, prop_TaskCompletionSource_Task) = GetTaskCompletionSourceInfo(VarTaskCompletionSource.Type);
 			var varException = Expression.Variable(typeof(Exception), "ex");
 			var continuationBuilder = new ContinuationBuilder(this);
 			var finalState = continuationBuilder.Process(Lambda.Body);
@@ -69,33 +83,33 @@ namespace bsn.AsyncLambdaExpression {
 								: Expression.Call(meth_Task_FromResultOfType.MakeGenericMethod(Lambda.Body.Type), Lambda.Body))
 						.Optimize();
 			}
-			finalState.AddExpression(Expression.Break(lblBreak));
+			finalState.AddExpression(Expression.Break(LblBreak));
 			var variables = varAwaiter.Values
-					.Append(varState)
-					.Append(varTaskCompletionSource)
-					.Append(varContinuation).ToList();
+					.Append(VarState)
+					.Append(VarTaskCompletionSource)
+					.Append(VarContinuation).ToList();
 			return Expression.Block(ResultType, variables,
 							Expression.Assign(
-									varTaskCompletionSource,
+									VarTaskCompletionSource,
 									Expression.New(ctor_TaskCompletionSource,
 											Expression.Constant(TaskCreationOptions.RunContinuationsAsynchronously))),
-							Expression.Assign(varContinuation,
+							Expression.Assign(VarContinuation,
 									Expression.Lambda<Action>(Expression.TryCatch(
 											Expression.Loop(
 													Expression.Switch(typeof(void),
-															varState,
+															VarState,
 															Expression.Throw(
 																	Expression.New(ctor_InvalidOperationExpression)),
 															null,
 															continuationBuilder.States.Select(state =>
 																	Expression.SwitchCase(
-																			state.ToExpression(varState),
+																			state.ToExpression(VarState),
 																			Expression.Constant(state.StateId)))),
-													lblBreak),
+													LblBreak),
 											Expression.Catch(varException,
-													Expression.Call(varTaskCompletionSource, meth_TaskCompletionSource_SetException, varException))))),
-							Expression.Invoke(varContinuation),
-							Expression.Property(varTaskCompletionSource, prop_TaskCompletionSource_Task))
+													Expression.Call(VarTaskCompletionSource, meth_TaskCompletionSource_SetException, varException))))),
+							Expression.Invoke(VarContinuation),
+							Expression.Property(VarTaskCompletionSource, prop_TaskCompletionSource_Task))
 					.Optimize()
 					.RescopeVariables(Lambda.Parameters.Concat(variables)); // 2nd optimize pass cleans up variable-related stuff
 		}
