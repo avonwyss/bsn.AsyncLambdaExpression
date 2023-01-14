@@ -46,6 +46,14 @@ namespace bsn.AsyncLambdaExpression {
 		}
 
 		[Fact]
+		public async Task TestSyncCompiled() {
+			var compiled = CompileAsyncLambda<string, string>(paraInput =>
+					paraInput);
+			var result = await compiled("success").ConfigureAwait(false);
+			Assert.Equal("success", result);
+		}
+
+		[Fact]
 		public async Task TestDelayCompiled() {
 			var compiled = CompileAsyncLambda<Task<string>, string>(paraInput =>
 					Expression.Block(
@@ -90,17 +98,37 @@ namespace bsn.AsyncLambdaExpression {
 		}
 
 		[Fact]
-		public async Task TestOrElseCompiled() {
-			var compiled = CompileAsyncLambda<Task<bool>, bool>(paraInput =>
+		public async Task TestOrElseSyncSyncCompiled() {
+			var compiled = CompileAsyncLambda<bool, bool>(paraInput =>
 					Expression.OrElse(
-							paraInput.Await(true),
-							Throw<Task<bool>>().Await(false)));
-			var result = await compiled(Task.FromResult(false)).ConfigureAwait(false);
+							paraInput,
+							Throw<bool>()));
+			var result = await compiled(true).ConfigureAwait(false);
 			Assert.True(result);
 		}
 
 		[Fact]
-		public async Task TestAndAlsoCompiled() {
+		public async Task TestOrElseAsyncSyncCompiled() {
+			var compiled = CompileAsyncLambda<Task<bool>, bool>(paraInput =>
+					Expression.OrElse(
+							paraInput.Await(false),
+							Throw<bool>()));
+			var result = await compiled(Task.FromResult(true)).ConfigureAwait(false);
+			Assert.True(result);
+		}
+
+		[Fact]
+		public async Task TestOrElseSyncAsyncCompiled() {
+			var compiled = CompileAsyncLambda<bool, bool>(paraInput =>
+					Expression.OrElse(
+							paraInput,
+							Throw<Task<bool>>().Await(false)));
+			var result = await compiled(true).ConfigureAwait(false);
+			Assert.True(result);
+		}
+
+		[Fact]
+		public async Task TestOrElseAsyncAsyncCompiled() {
 			var compiled = CompileAsyncLambda<Task<bool>, bool>(paraInput =>
 					Expression.OrElse(
 							paraInput.Await(false),
@@ -110,7 +138,80 @@ namespace bsn.AsyncLambdaExpression {
 		}
 
 		[Fact]
-		public async Task TestConditionalCompiled() {
+		public async Task TestAndAlsoSyncSyncCompiled() {
+			var compiled = CompileAsyncLambda<bool, bool>(paraInput =>
+					Expression.AndAlso(
+							paraInput,
+							Throw<bool>()));
+			var result = await compiled(false).ConfigureAwait(false);
+			Assert.False(result);
+		}
+
+		[Fact]
+		public async Task TestAndAlsoAsyncSyncCompiled() {
+			var compiled = CompileAsyncLambda<Task<bool>, bool>(paraInput =>
+					Expression.AndAlso(
+							paraInput.Await(false),
+							Throw<bool>()));
+			var result = await compiled(Task.FromResult(false)).ConfigureAwait(false);
+			Assert.False(result);
+		}
+
+		[Fact]
+		public async Task TestAndAlsoSyncAsyncCompiled() {
+			var compiled = CompileAsyncLambda<bool, bool>(paraInput =>
+					Expression.AndAlso(
+							paraInput,
+							Throw<Task<bool>>().Await(false)));
+			var result = await compiled(false).ConfigureAwait(false);
+			Assert.False(result);
+		}
+
+		[Fact]
+		public async Task TestAndAlsoAsyncAsyncCompiled() {
+			var compiled = CompileAsyncLambda<Task<bool>, bool>(paraInput =>
+					Expression.AndAlso(
+							paraInput.Await(false),
+							Throw<Task<bool>>().Await(false)));
+			var result = await compiled(Task.FromResult(false)).ConfigureAwait(false);
+			Assert.False(result);
+		}
+
+		[Fact]
+		public async Task TestConditionalSyncSyncCompiled() {
+			var compiled = CompileAsyncLambda<Task<bool>, string>(paraInput =>
+					Expression.Condition(
+							paraInput.Await(false),
+							Expression.Constant("success"),
+							Throw<string>()));
+			var result = await compiled(Task.FromResult(true)).ConfigureAwait(false);
+			Assert.Equal("success", result);
+		}
+
+		[Fact]
+		public async Task TestConditionalAsyncSyncCompiled() {
+			var compiled = CompileAsyncLambda<Task<bool>, string>(paraInput =>
+					Expression.Condition(
+							paraInput.Await(false),
+							Expression.Constant(Task.FromResult("success")).Await(false),
+							Throw<string>()));
+			var result = await compiled(Task.FromResult(true)).ConfigureAwait(false);
+			Assert.Equal("success", result);
+		}
+
+		[Fact]
+		public async Task TestConditionalSyncAsyncCompiled() {
+			var compiled = CompileAsyncLambda<Task<bool>, string>(paraInput =>
+					Expression.Condition(
+							paraInput.Await(false),
+							Expression.Constant("success"),
+							Throw<Task<string>>().Await(false)));
+			var result = await compiled(Task.FromResult(true)).ConfigureAwait(false);
+			Assert.Equal("success", result);
+		}
+
+		[Fact]
+		public async Task TestConditionalAsyncAsyncCompiled() {
 			var compiled = CompileAsyncLambda<Task<bool>, string>(paraInput =>
 					Expression.Condition(
 							paraInput.Await(false),

@@ -7,14 +7,13 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
-using System.Threading.Tasks.Sources;
-
-using bsn.AsyncLambdaExpression.Expressions;
 
 namespace bsn.AsyncLambdaExpression {
 	internal partial class AsyncStateMachineBuilder {
 		private static readonly ConcurrentDictionary<Type, (ConstructorInfo, MethodInfo, MethodInfo, PropertyInfo)> taskCompletionSourceInfos = new();
 		private static readonly ConstructorInfo ctor_InvalidOperationExpression = typeof(InvalidOperationException).GetConstructor(Type.EmptyTypes);
+		private static readonly PropertyInfo prop_Task_CompletedTask = typeof(Task).GetProperty(nameof(Task.CompletedTask));
+		private static readonly MethodInfo meth_Task_FromResultOfType = typeof(Task).GetMethod(nameof(Task.FromResult));
 
 		private static (ConstructorInfo ctor, MethodInfo methSetResult, MethodInfo methSetException, PropertyInfo propTask) GetTaskCompletionSourceInfo(Type type) {
 			return taskCompletionSourceInfos.GetOrAdd(type, static t => (
@@ -59,8 +58,17 @@ namespace bsn.AsyncLambdaExpression {
 		public Expression CreateStateMachineBody() {
 			var (ctor_TaskCompletionSource, _, meth_TaskCompletionSource_SetException, prop_TaskCompletionSource_Task) = GetTaskCompletionSourceInfo(varTaskCompletionSource.Type);
 			var varException = Expression.Variable(typeof(Exception), "ex");
-			var splitter = new SplitVisitor(this);
-			var finalState = splitter.Process(Lambda.Body);
+			var continuationBuilder = new ContinuationBuilder(this);
+			var finalState = continuationBuilder.Process(Lambda.Body);
+			if (finalState.StateId == 0) {
+				return (ResultType == typeof(Task)
+								? (Expression)Expression.Block(
+										Lambda.Body,
+										Expression.Property(null, prop_Task_CompletedTask)
+								)
+								: Expression.Call(meth_Task_FromResultOfType.MakeGenericMethod(Lambda.Body.Type), Lambda.Body))
+						.Optimize();
+			}
 			finalState.AddExpression(Expression.Break(lblBreak));
 			var variables = varAwaiter.Values
 					.Append(varState)
@@ -79,7 +87,7 @@ namespace bsn.AsyncLambdaExpression {
 															Expression.Throw(
 																	Expression.New(ctor_InvalidOperationExpression)),
 															null,
-															splitter.states.Select(state =>
+															continuationBuilder.States.Select(state =>
 																	Expression.SwitchCase(
 																			state.ToExpression(varState),
 																			Expression.Constant(state.StateId)))),
@@ -89,7 +97,7 @@ namespace bsn.AsyncLambdaExpression {
 							Expression.Invoke(varContinuation),
 							Expression.Property(varTaskCompletionSource, prop_TaskCompletionSource_Task))
 					.Optimize()
-					.RescopeVariables(Lambda.Parameters.Concat(variables));
+					.RescopeVariables(Lambda.Parameters.Concat(variables)); // 2nd optimize pass cleans up variable-related stuff
 		}
 
 		public static bool IsAwaitExpression(Expression node) {

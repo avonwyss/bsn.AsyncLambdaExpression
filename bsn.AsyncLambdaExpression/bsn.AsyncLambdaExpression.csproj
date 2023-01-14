@@ -67,8 +67,8 @@
   <ItemGroup>
     <Compile Include="AsyncExpressionExtensions.cs" />
     <Compile Include="AsyncState.cs" />
+    <Compile Include="AsyncStateMachineBuilder.ContinuationBuilder.cs" />
     <Compile Include="AsyncStateMachineBuilder.cs" />
-    <Compile Include="AsyncStateMachineBuilder.ReorganizeVisitor.cs" />
     <Compile Include="Collections\ImmutableStack.cs" />
     <Compile Include="Expressions\Optimizer.cs" />
     <Compile Include="Expressions\VariableScopeFinder.cs" />
