@@ -33,7 +33,11 @@ namespace bsn.AsyncLambdaExpression {
 		private Func<TInput, Task<TResult>> CompileAsyncLambda<TInput, TResult>(Func<ParameterExpression, Expression> bodyFactory) {
 			var paraInput = Expression.Parameter(typeof(TInput), "input");
 			var exprLambda = Expression.Lambda<Func<TInput, TResult>>(bodyFactory(paraInput), paraInput);
+			Output.WriteLine("==> Original Lambda");
+			Output.WriteLine(exprLambda.ToString(BuiltinRenderer.DebugView));
 			var exprAsync = exprLambda.Async<Func<TInput, Task<TResult>>>();
+			Output.WriteLine("");
+			Output.WriteLine("==> Async Lambda");
 			Output.WriteLine(exprAsync.ToString(BuiltinRenderer.DebugView));
 			return exprAsync.Compile(false);
 		}
@@ -117,30 +121,160 @@ namespace bsn.AsyncLambdaExpression {
 		}
 
 		[Fact]
-		public async Task TestGotoCompiled() {
-			var lbl1 = Expression.Label();
+		public async Task TestGotoAsyncCompiled() {
+			var varResult = Expression.Variable(typeof(int), "result");
+			var lblTarget = Expression.Label(typeof(int), "target");
 			var compiled = CompileAsyncLambda<Task<bool>, int>(paraInput =>
 					Expression.Block(
 							Expression.IfThen(
 									paraInput.Await(false),
-									Expression.Goto(lbl1, Expression.Constant(Task.FromResult(1)).Await(false))),
+									Expression.Goto(lblTarget, Expression.Constant(Task.FromResult(1)).Await(false))),
 							Throw<Task<int>>().Await(false),
-							Expression.Label(lbl1, Expression.Constant(Task.FromResult(-1)).Await(false))));
+							Expression.Add(
+									Expression.Label(lblTarget, Expression.Constant(Task.FromResult(-1)).Await(false)),
+									Expression.Constant(2))));
 			var result = await compiled(Task.FromResult(true)).ConfigureAwait(false);
-			Assert.Equal(1, result);
+			Assert.Equal(3, result);
 		}
 
 		[Fact]
-		public async Task TestTryCatchCompiled() { }
+		public async Task TestGotoSyncCompiled() {
+			var lblTarget = Expression.Label(typeof(int), "target");
+			var compiled = CompileAsyncLambda<bool, int>(paraInput =>
+					Expression.Block(
+							Expression.IfThen(
+									paraInput,
+									Expression.Goto(lblTarget, Expression.Constant(1))),
+							Throw<int>(),
+							Expression.Add(
+									Expression.Label(lblTarget, Expression.Constant(-1)),
+									Expression.Constant(2))));
+			var result = await compiled(true).ConfigureAwait(false);
+			Assert.Equal(3, result);
+		}
 
 		[Fact]
-		public async Task TestTryFinallyCompiled() { }
+		public async Task TestTryCatchCompiled() {
+			var varEx = Expression.Variable(typeof(Exception), "ex");
+			var compiled = CompileAsyncLambda<Task<bool>, int>(paraInput =>
+					Expression.TryCatch(
+							Throw<Task<int>>().Await(false),
+							Expression.Catch(varEx,
+									Expression.Constant(-1),
+									Expression.Constant(true))));
+			var result = await compiled(Task.FromResult(true)).ConfigureAwait(false);
+			Assert.Equal(-1, result);
+		}
 
 		[Fact]
-		public async Task TestTryCatchFinallyCompiled() { }
+		public async Task TestTryFinallyCompiled() {
+			var varResult = Expression.Variable(typeof(int), "result");
+			var compiled = CompileAsyncLambda<Task<int>, int>(paraInput =>
+					Expression.Block(varResult.Yield(),
+							Expression.TryFinally(
+									Expression.Assign(
+											varResult,
+											paraInput.Await(false)),
+									Expression.AddAssign(
+											varResult,
+											Expression.Constant(Task.FromResult(1)).Await(false))),
+							varResult));
+			var result = await compiled(Task.FromResult(2)).ConfigureAwait(false);
+			Assert.Equal(3, result);
+		}
 
 		[Fact]
-		public async Task TestLoopCompiled() { }
+		public async Task TestTryCatchFinallyCompiled() {
+			var varEx = Expression.Variable(typeof(Exception), "ex");
+			var varResult = Expression.Variable(typeof(int), "result");
+			var compiled = CompileAsyncLambda<Task<int>, int>(paraInput =>
+					Expression.Block(varResult.Yield(),
+							Expression.TryCatchFinally(
+									Throw<Task<int>>().Await(false),
+									Expression.AddAssign(
+											varResult,
+											Expression.Constant(Task.FromResult(1)).Await(false)),
+									Expression.Catch(varEx,
+											Expression.Assign(
+													varResult,
+													paraInput.Await(false)),
+											Expression.Constant(true))),
+							varResult));
+			var result = await compiled(Task.FromResult(2)).ConfigureAwait(false);
+			Assert.Equal(3, result);
+		}
+
+		[Fact]
+		public async Task TestTryFaultCompiled() {
+			var compiled = CompileAsyncLambda<Task<int>, int>(paraInput =>
+					Expression.TryFault(
+							Expression.Add(
+									paraInput.Await(false),
+									Expression.Constant(1)),
+							Expression.Constant(Task.FromResult(-1)).Await(false)));
+			var result = await compiled(Task.FromResult(2)).ConfigureAwait(false);
+			Assert.Equal(3, result);
+		}
+
+		[Fact]
+		public async Task TestLoopAsyncCompiled() {
+			var lblContinue = Expression.Label("continue");
+			var lblBreak = Expression.Label(typeof(int), "break");
+			var varResult = Expression.Variable(typeof(int), "result");
+			var compiled = CompileAsyncLambda<Task<int>, int>(paraInput =>
+					Expression.Add(
+							Expression.Block(varResult.Yield(),
+									Expression.Loop(
+											Expression.Block(
+													Expression.IfThen(
+															Expression.LessThanOrEqual(
+																	paraInput.Await(false),
+																	varResult),
+															Expression.Break(lblBreak, varResult)),
+													Expression.AddAssign(
+															varResult,
+															Expression.Constant(Task.FromResult(1)).Await(false)),
+													Expression.IfThen(
+															Expression.LessThanOrEqual(
+																	Expression.Constant(0),
+																	varResult),
+															Expression.Continue(lblContinue)),
+													Throw<int>()),
+											lblBreak, lblContinue)),
+							Expression.Constant(Task.FromResult(1)).Await(false)));
+			var result = await compiled(Task.FromResult(2)).ConfigureAwait(false);
+			Assert.Equal(3, result);
+		}
+
+		[Fact]
+		public async Task TestLoopSyncCompiled() {
+			var lblContinue = Expression.Label("continue");
+			var lblBreak = Expression.Label(typeof(int), "break");
+			var varResult = Expression.Variable(typeof(int), "result");
+			var compiled = CompileAsyncLambda<int, int>(paraInput =>
+					Expression.Add(
+							Expression.Block(varResult.Yield(),
+									Expression.Loop(
+											Expression.Block(
+													Expression.IfThen(
+															Expression.LessThanOrEqual(
+																	paraInput,
+																	varResult),
+															Expression.Break(lblBreak, varResult)),
+													Expression.AddAssign(
+															varResult,
+															Expression.Constant(1)),
+													Expression.IfThen(
+															Expression.LessThanOrEqual(
+																	Expression.Constant(0),
+																	varResult),
+															Expression.Continue(lblContinue)),
+													Throw<int>()),
+											lblBreak, lblContinue)),
+							Expression.Constant(1)));
+			var result = await compiled(2).ConfigureAwait(false);
+			Assert.Equal(3, result);
+		}
 
 		[Fact]
 		public async Task TestSwitchSyncSyncCompiled() {

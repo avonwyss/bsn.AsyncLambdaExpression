@@ -48,7 +48,7 @@ namespace bsn.AsyncLambdaExpression {
 			get;
 		}
 
-		public Type ResultType {
+		public Type ResultTaskType {
 			get;
 		}
 
@@ -57,25 +57,27 @@ namespace bsn.AsyncLambdaExpression {
 			return varAwaiter.GetOrAdd(awaiterType, static t => Expression.Variable(t, "awaiter"));
 		}
 
-		public AsyncStateMachineBuilder(LambdaExpression lambda, Type resultType) {
-			if (!resultType.IsTask()) {
+		public AsyncStateMachineBuilder(LambdaExpression lambda, Type resultTaskType) {
+			if (!resultTaskType.IsTask()) {
 				throw new ArgumentException("Only Task<> and Task are supported as return types");
 			}
 			Lambda = lambda;
-			ResultType = resultType;
+			ResultTaskType = resultTaskType;
 			VarState = Expression.Variable(typeof(int), "state");
-			VarTaskCompletionSource = Expression.Variable(typeof(TaskCompletionSource<>).MakeGenericType(ResultType.GetAsyncReturnType() ?? typeof(object)), "taskCompletionSource");
+			VarTaskCompletionSource = Expression.Variable(typeof(TaskCompletionSource<>).MakeGenericType(ResultTaskType.GetAsyncReturnType() ?? typeof(object)), "taskCompletionSource");
 			VarContinuation = Expression.Variable(typeof(Action), "continuation");
 			LblBreak = Expression.Label(typeof(void), ":break");
 		}
 
 		public Expression CreateStateMachineBody() {
-			var (ctor_TaskCompletionSource, _, meth_TaskCompletionSource_SetException, prop_TaskCompletionSource_Task) = GetTaskCompletionSourceInfo(VarTaskCompletionSource.Type);
+			var (ctor_TaskCompletionSource, meth_TaskCompletionSource_SetResult, meth_TaskCompletionSource_SetException, prop_TaskCompletionSource_Task) = GetTaskCompletionSourceInfo(VarTaskCompletionSource.Type);
 			var varException = Expression.Variable(typeof(Exception), "ex");
 			var continuationBuilder = new ContinuationBuilder(this);
-			var finalState = continuationBuilder.Process(Lambda.Body);
+			var (finalState, finalExpr) = continuationBuilder.Process(Lambda.Body);
 			if (finalState.StateId == 0) {
-				return (ResultType == typeof(Task)
+				// Nothing async, just wrap into a Task
+				// TODO: Be a good citizen: catch exception and pass it to Task.FromException()
+				return (ResultTaskType == typeof(Task)
 								? (Expression)Expression.Block(
 										Lambda.Body,
 										Expression.Property(null, prop_Task_CompletedTask)
@@ -83,12 +85,21 @@ namespace bsn.AsyncLambdaExpression {
 								: Expression.Call(meth_Task_FromResultOfType.MakeGenericMethod(Lambda.Body.Type), Lambda.Body))
 						.Optimize();
 			}
-			finalState.AddExpression(Expression.Break(LblBreak));
+			if (ResultTaskType == typeof(object)) {
+				finalState.AddExpression(finalExpr);
+			}
+			finalState.AddExpression(
+							Expression.Call(VarTaskCompletionSource, meth_TaskCompletionSource_SetResult,
+							ResultTaskType == typeof(object)
+									? Expression.Default(typeof(object))
+									: finalExpr));
+			finalState.AddExpression(
+					Expression.Break(LblBreak));
 			var variables = varAwaiter.Values
 					.Append(VarState)
 					.Append(VarTaskCompletionSource)
 					.Append(VarContinuation).ToList();
-			return Expression.Block(ResultType, variables,
+			return Expression.Block(ResultTaskType, variables,
 							Expression.Assign(
 									VarTaskCompletionSource,
 									Expression.New(ctor_TaskCompletionSource,

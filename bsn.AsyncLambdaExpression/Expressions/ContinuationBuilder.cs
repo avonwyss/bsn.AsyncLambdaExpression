@@ -70,18 +70,20 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 			return state;
 		}
 
-		public AsyncState Process(Expression node) {
+		protected AsyncState GetLabelState(LabelTarget target) {
+			if (!labelStates.TryGetValue(target, out var state)) {
+				state = CreateState(target.Type);
+				labelStates.Add(target, state);
+			}
+			return state;
+		}
+
+		public (AsyncState state, Expression expr) Process(Expression node) {
 			states.Clear();
+			labelStates.Clear();
 			currentState = CreateState(typeof(void));
 			var exprEnd = Visit(node);
-			var methSetResult = AsyncStateMachineBuilder.GetTaskCompletionSourceInfo(builder.VarTaskCompletionSource.Type).methSetResult;
-			if (builder.Lambda.ReturnType == typeof(Task)) {
-				currentState.AddExpression(exprEnd);
-				currentState.AddExpression(Expression.Call(builder.VarTaskCompletionSource, methSetResult, Expression.Default(typeof(Task))));
-			} else {
-				currentState.AddExpression(Expression.Call(builder.VarTaskCompletionSource, methSetResult, exprEnd));
-			}
-			return currentState;
+			return (currentState, exprEnd);
 		}
 	}
 }

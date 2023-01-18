@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System.CodeDom;
+using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 
@@ -28,17 +29,12 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 		protected override Expression VisitBlock(BlockExpression node) {
 			var expressions = new List<Expression>(node.Expressions.Count * 2);
 			var variables = node.Variables.ToList();
-			var last = default(Expression);
 			var queue = new Queue<Expression>();
 			foreach (var exprs in node.Expressions.Select(Visit)) {
 				queue.Enqueue(exprs);
 				do {
 					var expr = queue.Dequeue();
-					last = default;
-					if (expr is DefaultExpression or ConstantExpression or ParameterExpression) {
-						// Don't add a pure expression, but remember it in case it was the last expression
-						last = expr;
-					} else if (expr is BlockExpression nestedBlock) {
+					if (expr is BlockExpression nestedBlock) {
 						// Flatten nested block by adding items to the queue
 						foreach (var nested in nestedBlock.Expressions) {
 							queue.Enqueue(nested);
@@ -61,20 +57,30 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 					}
 				} while (queue.Count > 0);
 			}
-			if (last != null &&
-			    (expressions.Count == 0 || !(
-					    expressions[expressions.Count-1] is BinaryExpression binary &&
-					    assignmentTypes.Contains(binary.NodeType) &&
-					    binary.Left == last)
-			    )) {
-				// Keep "last" expression if it is an expression which was skipped over, and the previous one was not an assignment to "last"
-				expressions.Add(last);
+			// Remove side-effect-free but useless expressions
+			for (var i = expressions.Count-2; i >= 0; i--) {
+				if (expressions[i] is DefaultExpression or ConstantExpression or ParameterExpression) {
+					expressions.RemoveAt(i);
+				}
 			}
-			while (expressions.Count >= 2 && 
-			       expressions[expressions.Count-2] is BinaryExpression {NodeType: ExpressionType.Assign, Left: ParameterExpression para1 } assign1 &&
-			       expressions[expressions.Count-1] is BinaryExpression {NodeType: ExpressionType.Assign, Conversion: null, Left: ParameterExpression para2 } assign2 &&
-			       assign2.Right == para1) {
-				expressions[expressions.Count-2] = assign1.Update(para2, assign1.Conversion, assign1.Right);
+			// If the last item is a parameter expression, and the one before an assignment to it, discard last item
+			while (expressions.Count >= 2 && expressions[expressions.Count-1] is ParameterExpression param &&
+			       expressions[expressions.Count-2] is BinaryExpression binary &&
+			       assignmentTypes.Contains(binary.NodeType) &&
+			       binary.Left == param
+			      ) {
+				expressions.RemoveAt(expressions.Count-1);
+			}
+			// if we have an x = result, y = x, and x is a local variable, rewrite this as y = result
+			while (expressions.Count >= 2 &&
+			       expressions[expressions.Count-2] is BinaryExpression { NodeType: ExpressionType.Assign, Left: ParameterExpression para1 } assign1 &&
+			       expressions[expressions.Count-1] is BinaryExpression { NodeType: ExpressionType.Assign, Conversion: null } assign2 &&
+			       assign2.Right == para1 && variables.Contains(para1)) {
+				expressions[expressions.Count-2] = assign1.Update(assign2.Left, assign1.Conversion, assign1.Right);
+				expressions.RemoveAt(expressions.Count-1);
+			}
+			// Remove redundant void at the end
+			if (expressions[expressions.Count-1] is DefaultExpression def && def.Type == typeof(void)) {
 				expressions.RemoveAt(expressions.Count-1);
 			}
 			return expressions.Count == 0

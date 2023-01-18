@@ -58,11 +58,13 @@ namespace bsn.AsyncLambdaExpression {
 
 		public Expression ToExpression(ParameterExpression varState) {
 			Debug.Assert(varState != null);
-			var expressions = omitStateAssignment
-					? this.expressions
-					: this.expressions.Prepend(Expression.Assign(
-							varState,
-							Expression.Constant(Continuation?.StateId ?? -1)));
+			var expressions =
+					omitStateAssignment
+							? this.expressions
+							: this.expressions.Prepend(
+									Expression.Assign(
+											varState,
+											Expression.Constant(Continuation?.StateId ?? -1)));
 			return Expression.Block(variables, expressions);
 		}
 

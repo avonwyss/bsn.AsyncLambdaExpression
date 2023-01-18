@@ -22,9 +22,18 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 		}
 
 		protected override Expression VisitBlock(BlockExpression node) {
-			return node.Update(
+			var block = node.Update(
 					node.Variables.Where(unmanaged).Concat(blockVariables[node]), 
 					node.Expressions.Select(Visit));
+			if (block.Variables.Count > 0) {
+				return block;
+			}
+			// Eliminate now-redundant blocks
+			return block.Expressions.Count switch {
+					0 => Expression.Default(node.Type),
+					1 => block.Expressions[0],
+					_ => block
+			};
 		}
 	}
 }

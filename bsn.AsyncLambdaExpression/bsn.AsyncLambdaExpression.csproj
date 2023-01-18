@@ -72,9 +72,15 @@
     <Compile Include="Collections\ImmutableStack.cs" />
     <Compile Include="Expressions\ContinuationBuilder.cs" />
     <Compile Include="Expressions\ContinuationBuilder.VisitBinary.cs" />
+    <Compile Include="Expressions\ContinuationBuilder.VisitBlock.cs" />
     <Compile Include="Expressions\ContinuationBuilder.VisitConditional.cs" />
+    <Compile Include="Expressions\ContinuationBuilder.VisitGoto.cs" />
+    <Compile Include="Expressions\ContinuationBuilder.VisitLabel.cs" />
+    <Compile Include="Expressions\ContinuationBuilder.VisitLambda.cs" />
+    <Compile Include="Expressions\ContinuationBuilder.VisitLoop.cs" />
     <Compile Include="Expressions\ContinuationBuilder.VisitMethodCall.cs" />
     <Compile Include="Expressions\ContinuationBuilder.VisitSwitch.cs" />
+    <Compile Include="Expressions\ContinuationBuilder.VisitTry.cs" />
     <Compile Include="Expressions\Optimizer.cs" />
     <Compile Include="Expressions\VariableScopeFinder.cs" />
     <Compile Include="Expressions\VariableScopeSetter.cs" />
