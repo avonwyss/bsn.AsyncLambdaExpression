@@ -68,8 +68,13 @@
     <Compile Include="AsyncExpressionExtensions.cs" />
     <Compile Include="AsyncState.cs" />
     <Compile Include="AsyncStateMachineBuilder.cs" />
+    <Compile Include="Collections\Extensions.cs" />
     <Compile Include="Collections\ImmutableStack.cs" />
     <Compile Include="Expressions\ContinuationBuilder.cs" />
+    <Compile Include="Expressions\ContinuationBuilder.VisitBinary.cs" />
+    <Compile Include="Expressions\ContinuationBuilder.VisitConditional.cs" />
+    <Compile Include="Expressions\ContinuationBuilder.VisitMethodCall.cs" />
+    <Compile Include="Expressions\ContinuationBuilder.VisitSwitch.cs" />
     <Compile Include="Expressions\Optimizer.cs" />
     <Compile Include="Expressions\VariableScopeFinder.cs" />
     <Compile Include="Expressions\VariableScopeSetter.cs" />

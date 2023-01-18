@@ -8,6 +8,7 @@ namespace bsn.AsyncLambdaExpression {
 	internal class AsyncState {
 		private readonly List<Expression> expressions = new(1);
 		private readonly List<ParameterExpression> variables = new(1);
+		private bool omitStateAssignment;
 
 		public int StateId {
 			get;
@@ -38,7 +39,7 @@ namespace bsn.AsyncLambdaExpression {
 		}
 
 		public void SetContinuation(AsyncState state) {
-			Debug.Assert(Continuation == null);
+			Debug.Assert(Continuation == null && !omitStateAssignment);
 			Continuation = state;
 		}
 
@@ -50,11 +51,19 @@ namespace bsn.AsyncLambdaExpression {
 			variables.Add(variable);
 		}
 
+		public void OmitStateAssignment() {
+			Debug.Assert(Continuation == null);
+			omitStateAssignment = true;
+		}
+
 		public Expression ToExpression(ParameterExpression varState) {
-			return Expression.Block(variables,
-					expressions.Prepend(Expression.Assign(
+			Debug.Assert(varState != null);
+			var expressions = omitStateAssignment
+					? this.expressions
+					: this.expressions.Prepend(Expression.Assign(
 							varState,
-							Expression.Constant(Continuation?.StateId ?? -1))));
+							Expression.Constant(Continuation?.StateId ?? -1)));
+			return Expression.Block(variables, expressions);
 		}
 
 		public override string ToString() {

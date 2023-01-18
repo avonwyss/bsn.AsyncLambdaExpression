@@ -70,6 +70,13 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 				// Keep "last" expression if it is an expression which was skipped over, and the previous one was not an assignment to "last"
 				expressions.Add(last);
 			}
+			while (expressions.Count >= 2 && 
+			       expressions[expressions.Count-2] is BinaryExpression {NodeType: ExpressionType.Assign, Left: ParameterExpression para1 } assign1 &&
+			       expressions[expressions.Count-1] is BinaryExpression {NodeType: ExpressionType.Assign, Conversion: null, Left: ParameterExpression para2 } assign2 &&
+			       assign2.Right == para1) {
+				expressions[expressions.Count-2] = assign1.Update(para2, assign1.Conversion, assign1.Right);
+				expressions.RemoveAt(expressions.Count-1);
+			}
 			return expressions.Count == 0
 					? Expression.Default(node.Type)
 					: expressions.Count == 1 && node.Type == expressions[0].Type && variables.Count == 0

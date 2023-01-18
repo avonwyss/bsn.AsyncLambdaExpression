@@ -13,13 +13,14 @@ using Xunit.Abstractions;
 
 namespace bsn.AsyncLambdaExpression {
 	public class AsyncExpressionExtensionTest {
-		private static readonly ConstructorInfo ctor_InvalidOperationExpression = typeof(InvalidOperationException).GetConstructor(new [] {typeof(string)});
+		private static readonly ConstructorInfo ctor_InvalidOperationExpression = typeof(InvalidOperationException).GetConstructor(new[] { typeof(string) });
 
-		public static UnaryExpression Throw<T>(string message = "This branch should not be reached during execution") =>
-				Expression.Throw(
-						Expression.New(ctor_InvalidOperationExpression,
-								Expression.Constant(message)),
-						typeof(T));
+		public static UnaryExpression Throw<T>(string message = "This branch should not be reached during execution") {
+			return Expression.Throw(
+					Expression.New(ctor_InvalidOperationExpression,
+							Expression.Constant(message)),
+					typeof(T));
+		}
 
 		public ITestOutputHelper Output {
 			get;
@@ -116,14 +117,120 @@ namespace bsn.AsyncLambdaExpression {
 		}
 
 		[Fact]
-		public async Task TestSwitchCompiled() {
+		public async Task TestGotoCompiled() {
+			var lbl1 = Expression.Label();
+			var compiled = CompileAsyncLambda<Task<bool>, int>(paraInput =>
+					Expression.Block(
+							Expression.IfThen(
+									paraInput.Await(false),
+									Expression.Goto(lbl1, Expression.Constant(Task.FromResult(1)).Await(false))),
+							Throw<Task<int>>().Await(false),
+							Expression.Label(lbl1, Expression.Constant(Task.FromResult(-1)).Await(false))));
+			var result = await compiled(Task.FromResult(true)).ConfigureAwait(false);
+			Assert.Equal(1, result);
+		}
+
+		[Fact]
+		public async Task TestTryCatchCompiled() { }
+
+		[Fact]
+		public async Task TestTryFinallyCompiled() { }
+
+		[Fact]
+		public async Task TestTryCatchFinallyCompiled() { }
+
+		[Fact]
+		public async Task TestLoopCompiled() { }
+
+		[Fact]
+		public async Task TestSwitchSyncSyncCompiled() {
+			var compiled = CompileAsyncLambda<Task<int>, int>(paraInput =>
+					Expression.Switch(paraInput.Await(false),
+							Expression.Constant(-1),
+							Expression.SwitchCase(
+									Throw<int>(),
+									Expression.Constant(1)),
+							Expression.SwitchCase(
+									Throw<int>(),
+									Expression.Constant(2))));
+			var result = await compiled(Task.FromResult(0)).ConfigureAwait(false);
+			Assert.Equal(-1, result);
+		}
+
+		[Fact]
+		public async Task TestSwitchSyncAsyncCompiled() {
 			var compiled = CompileAsyncLambda<Task<int>, int>(paraInput =>
 					Expression.Switch(paraInput.Await(false),
 							Expression.Constant(Task.FromResult(-1)).Await(false),
 							Expression.SwitchCase(
 									Throw<Task<int>>().Await(false),
-									Expression.Constant(Task.FromResult(1)).Await(false))));
-			var result = await compiled(Task.FromResult(2)).ConfigureAwait(false);
+									Expression.Constant(1)),
+							Expression.SwitchCase(
+									Throw<Task<int>>().Await(false),
+									Expression.Constant(2))));
+			var result = await compiled(Task.FromResult(0)).ConfigureAwait(false);
+			Assert.Equal(-1, result);
+		}
+
+		[Fact]
+		public async Task TestSwitchAsyncSyncCompiled() {
+			var compiled = CompileAsyncLambda<Task<int>, int>(paraInput =>
+					Expression.Switch(paraInput.Await(false),
+							Expression.Constant(-1),
+							Expression.SwitchCase(
+									Throw<int>(),
+									Expression.Constant(Task.FromResult(1)).Await(false)),
+							Expression.SwitchCase(
+									Throw<int>(),
+									Expression.Constant(Task.FromResult(2)).Await(false))));
+			var result = await compiled(Task.FromResult(0)).ConfigureAwait(false);
+			Assert.Equal(-1, result);
+		}
+
+		[Fact]
+		public async Task TestSwitchAsyncAsyncCompiled() {
+			var compiled = CompileAsyncLambda<Task<int>, int>(paraInput =>
+					Expression.Switch(paraInput.Await(false),
+							Expression.Constant(Task.FromResult(-1)).Await(false),
+							Expression.SwitchCase(
+									Throw<Task<int>>().Await(false),
+									Expression.Constant(Task.FromResult(1)).Await(false)),
+							Expression.SwitchCase(
+									Throw<Task<int>>().Await(false),
+									Expression.Constant(Task.FromResult(2)).Await(false))));
+			var result = await compiled(Task.FromResult(0)).ConfigureAwait(false);
+			Assert.Equal(-1, result);
+		}
+
+		[Fact]
+		public async Task TestSwitchMixSAAsyncCompiled() {
+			var compiled = CompileAsyncLambda<Task<int>, int>(paraInput =>
+					Expression.Switch(paraInput.Await(false),
+							Expression.Constant(Task.FromResult(-1)).Await(false),
+							Expression.SwitchCase(
+									Throw<Task<int>>().Await(false),
+									Expression.Constant(1)),
+							Expression.SwitchCase(
+									Throw<Task<int>>().Await(false),
+									Expression.Constant(Task.FromResult(2)).Await(false))));
+			var result = await compiled(Task.FromResult(0)).ConfigureAwait(false);
+			Assert.Equal(-1, result);
+		}
+
+		[Fact]
+		public async Task TestSwitchMixASAsyncCompiled() {
+			var compiled = CompileAsyncLambda<Task<int>, int>(paraInput =>
+					Expression.Switch(paraInput.Await(false),
+							Expression.Constant(Task.FromResult(-1)).Await(false),
+							Expression.SwitchCase(
+									Throw<Task<int>>().Await(false),
+									Expression.Constant(Task.FromResult(1)).Await(false),
+									Expression.Constant(4)),
+							Expression.SwitchCase(
+									Throw<Task<int>>().Await(false),
+									Expression.Constant(2),
+									Expression.Constant(3))));
+			var result = await compiled(Task.FromResult(0)).ConfigureAwait(false);
 			Assert.Equal(-1, result);
 		}
 
