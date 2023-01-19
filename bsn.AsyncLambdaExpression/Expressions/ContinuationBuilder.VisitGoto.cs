@@ -1,5 +1,7 @@
 ﻿using System.Linq.Expressions;
 
+using bsn.AsyncLambdaExpression.Collections;
+
 namespace bsn.AsyncLambdaExpression.Expressions {
 	internal partial class ContinuationBuilder {
 		protected override Expression VisitGoto(GotoExpression node) {
@@ -12,7 +14,8 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 								value));
 			}
 			currentState.SetContinuation(targetState);
-			currentState = new AsyncState(-1, node.Type);
+			currentState = new AsyncState(-1, node.Type, ImmutableStack<TryInfo>.Empty);
+			currentState.SetName("Goto", targetState.StateId, "Virtual");
 			return Expression.Default(node.Type);
 		}
 	}

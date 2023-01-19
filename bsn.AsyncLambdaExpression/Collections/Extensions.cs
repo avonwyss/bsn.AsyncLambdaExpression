@@ -16,6 +16,70 @@ namespace bsn.AsyncLambdaExpression.Collections {
 			}
 		}
 
+		[Pure]
+		public static bool NotNull<T>(T item) where T: class {
+			return item != null;
+		}
+
+		[Pure]
+		public static TResult FirstNotNullOrDefault<TItem, TResult>(this IEnumerable<TItem> that, Func<TItem, TResult> selector) where TResult: class {
+			return that.Select(selector).FirstOrDefault(NotNull);
+		}
+
+		[Pure]
+		public static bool TryFirst<TItem>(this IEnumerable<TItem> that, out TItem item) {
+			using var enumerator = that.GetEnumerator();
+			if (enumerator.MoveNext()) {
+				item = enumerator.Current;
+				return true;
+			}
+			item = default;
+			return false;
+		}
+
+		[Pure]
+		public static bool TryFirst<TItem>(this IEnumerable<TItem> that, Func<TItem, bool> predicate, out TItem item) {
+			return that.Where(predicate).TryFirst(out item);
+		}
+
+		[Pure]
+		public static bool TryFirstNotNull<TItem>(this IEnumerable<TItem> that, out TItem item) where TItem: class {
+			return that.Where(NotNull).TryFirst(out item);
+		}
+
+		[Pure]
+		public static bool TryFirstNotNull<TItem, TResult>(this IEnumerable<TItem> that, Func<TItem, TResult> selector, out TResult item) where TResult: class {
+			return that.Select(selector).TryFirstNotNull(out item);
+		}
+
+		[Pure]
+		public static bool TrySingle<TItem>(this IEnumerable<TItem> that, out TItem item) {
+			using var enumerator = that.GetEnumerator();
+			if (enumerator.MoveNext()) {
+				item = enumerator.Current;
+				if (!enumerator.MoveNext()) {
+					return true;
+				}
+			}
+			item = default;
+			return false;
+		}
+
+		[Pure]
+		public static bool TrySingle<TItem>(this IEnumerable<TItem> that, Func<TItem, bool> predicate, out TItem item) {
+			return that.Where(predicate).TrySingle(out item);
+		}
+
+
+		[Pure]
+		public static bool TrySingleNotNull<TItem>(this IEnumerable<TItem> that, out TItem item) where TItem : class {
+			return that.Where(NotNull).TrySingle(out item);
+		}
+
+		[Pure]
+		public static bool TrySingleNotNull<TItem, TResult>(this IEnumerable<TItem> that, Func<TItem, TResult> selector, out TResult item) where TResult : class {
+			return that.Select(selector).TrySingleNotNull(out item);
+		}
 		/// <summary>
 		/// Group By, but separate grouping as soon as key changes.
 		/// </summary>

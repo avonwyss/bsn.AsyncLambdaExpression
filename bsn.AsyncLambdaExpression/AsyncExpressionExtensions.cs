@@ -15,23 +15,24 @@ namespace bsn.AsyncLambdaExpression {
 	public static class AsyncExpressionExtensions {
 		private const string MessageNotConvertedToAsyncStateMachine = "The lambda expression was not converted to an async state machine";
 
-		private static readonly MethodInfo meth_AwaitPlaceholderResult = typeof(AsyncExpressionExtensions).GetMethod(nameof(AwaitPlaceholderResult), BindingFlags.Static|BindingFlags.NonPublic|BindingFlags.Public|BindingFlags.DeclaredOnly);
-		private static readonly MethodInfo meth_AwaitPlaceholderVoid = typeof(AsyncExpressionExtensions).GetMethod(nameof(AwaitPlaceholderVoid), BindingFlags.Static|BindingFlags.NonPublic|BindingFlags.Public|BindingFlags.DeclaredOnly);
+		private static readonly MethodInfo meth_AwaitResult = typeof(AsyncExpressionExtensions).GetMethod(nameof(AwaitResult), BindingFlags.Static|BindingFlags.NonPublic|BindingFlags.Public|BindingFlags.DeclaredOnly);
+		private static readonly MethodInfo meth_AwaitVoid = typeof(AsyncExpressionExtensions).GetMethod(nameof(AwaitVoid), BindingFlags.Static|BindingFlags.NonPublic|BindingFlags.Public|BindingFlags.DeclaredOnly);
 
 		public static bool IsAwaitMethod(MethodInfo method) {
 			if (!method.IsGenericMethod) {
 				return false;
 			}
 			var methodDefinition = method.GetGenericMethodDefinition();
-			return methodDefinition == meth_AwaitPlaceholderResult || methodDefinition == meth_AwaitPlaceholderVoid;
+			return methodDefinition == meth_AwaitResult || methodDefinition == meth_AwaitVoid;
 		}
 
 		// ReSharper disable once UnusedParameter.Local
-		private static TResult AwaitPlaceholderResult<TAwaitable, TResult>(TAwaitable awaitable) {
+		private static TResult AwaitResult<TAwaitable, TResult>(TAwaitable awaitable) {
 			throw new NotSupportedException(MessageNotConvertedToAsyncStateMachine);
 		}
 
-		private static void AwaitPlaceholderVoid<TAwaitable>(TAwaitable awaitable) {
+		// ReSharper disable once UnusedParameter.Local
+		private static void AwaitVoid<TAwaitable>(TAwaitable awaitable) {
 			throw new NotSupportedException(MessageNotConvertedToAsyncStateMachine);
 		}
 
@@ -52,16 +53,16 @@ namespace bsn.AsyncLambdaExpression {
 			}
 			var methGetResult = methGetAwaiter.ReturnType.GetAwaiterGetResultMethod();
 			return Expression.Call(methGetResult.ReturnType == typeof(void)
-					? meth_AwaitPlaceholderVoid.MakeGenericMethod(expression.Type)
-					: meth_AwaitPlaceholderResult.MakeGenericMethod(expression.Type, methGetResult.ReturnType), expression);
+					? meth_AwaitVoid.MakeGenericMethod(expression.Type)
+					: meth_AwaitResult.MakeGenericMethod(expression.Type, methGetResult.ReturnType), expression);
 		}
 
-		public static Expression<T> Async<T>(this LambdaExpression expression) {
-			return Expression.Lambda<T>(new AsyncStateMachineBuilder(expression, typeof(T).GetDelegateInvokeMethod().ReturnType).CreateStateMachineBody(), expression.Parameters);
+		public static Expression<T> Async<T>(this LambdaExpression expression, bool debug=false) {
+			return Expression.Lambda<T>(new AsyncStateMachineBuilder(expression, typeof(T).GetDelegateInvokeMethod().ReturnType).CreateStateMachineBody(debug), expression.Parameters);
 		}
 
-		public static LambdaExpression Async(this LambdaExpression expression, Type delegateType) {
-			return Expression.Lambda(delegateType, new AsyncStateMachineBuilder(expression, delegateType.GetDelegateInvokeMethod().ReturnType).CreateStateMachineBody(), expression.Parameters);
+		public static LambdaExpression Async(this LambdaExpression expression, Type delegateType, bool debug = false) {
+			return Expression.Lambda(delegateType, new AsyncStateMachineBuilder(expression, delegateType.GetDelegateInvokeMethod().ReturnType).CreateStateMachineBody(debug), expression.Parameters);
 		}
 
 		internal static Expression RescopeVariables(this Expression expression, IEnumerable<ParameterExpression> unmanagedVariablesAndParameters) {

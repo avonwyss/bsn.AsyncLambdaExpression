@@ -4,11 +4,30 @@ using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
 
+using bsn.AsyncLambdaExpression.Collections;
+
 namespace bsn.AsyncLambdaExpression {
 	internal class AsyncState {
 		private readonly List<Expression> expressions = new(1);
 		private readonly List<ParameterExpression> variables = new(1);
-		private bool omitStateAssignment;
+
+#if DEBUG
+		internal string Name {
+			get;
+			private set;
+		}
+#endif
+		[Conditional("DEBUG")]
+		internal void SetName(string kind, int groupId, string detail) {
+#if DEBUG
+			Debug.Assert(string.IsNullOrEmpty(Name));
+			Name = $"{kind} {groupId} {detail}".TrimEnd();
+#endif
+		}
+
+	public ImmutableStack<TryInfo> TryInfos {
+			get;
+		}
 
 		public int StateId {
 			get;
@@ -27,7 +46,8 @@ namespace bsn.AsyncLambdaExpression {
 
 		public IReadOnlyCollection<Expression> Expressions => expressions;
 
-		public AsyncState(int stateId, Type result) {
+		public AsyncState(int stateId, Type result, ImmutableStack<TryInfo> tryInfos) {
+			this.TryInfos = tryInfos;
 			StateId = stateId;
 			if (result == null || result == typeof(void)) {
 				ResultExpression = Expression.Empty();
@@ -39,7 +59,7 @@ namespace bsn.AsyncLambdaExpression {
 		}
 
 		public void SetContinuation(AsyncState state) {
-			Debug.Assert(Continuation == null && !omitStateAssignment);
+			Debug.Assert(Continuation == null);
 			Continuation = state;
 		}
 
@@ -47,24 +67,21 @@ namespace bsn.AsyncLambdaExpression {
 			expressions.Add(expression);
 		}
 
-		public void AddVariable(ParameterExpression variable) {
-			variables.Add(variable);
-		}
-
-		public void OmitStateAssignment() {
-			Debug.Assert(Continuation == null);
-			omitStateAssignment = true;
-		}
-
-		public Expression ToExpression(ParameterExpression varState) {
-			Debug.Assert(varState != null);
-			var expressions =
-					omitStateAssignment
-							? this.expressions
-							: this.expressions.Prepend(
-									Expression.Assign(
-											varState,
-											Expression.Constant(Continuation?.StateId ?? -1)));
+		public Expression ToExpression(IAsyncStateMachineVariables vars) {
+			Debug.Assert(vars != null);
+			var expressions = this.expressions.ToList();
+			if (Continuation != null) {
+				expressions.Insert(0,
+						Expression.Assign(
+								vars.VarState,
+								Expression.Constant(Continuation.StateId)));
+				if (Continuation == TryInfos.PeekOrDefault().FinallyState) {
+					expressions.Insert(0,
+							Expression.Assign(
+									vars.VarResumeState,
+									Expression.Constant(TryInfos.Peek().ExitState.StateId)));
+				}
+			}
 			return Expression.Block(variables, expressions);
 		}
 

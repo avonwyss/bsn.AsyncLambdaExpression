@@ -18,15 +18,17 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 				return node.Update(test, ifTrue.Expression, ifFalse.Expression);
 			}
 			var testExitState = currentState;
+			ifTrue.SetName("Conditional", testExitState.StateId, "True");
+			ifFalse.SetName("Conditional", testExitState.StateId, "False");
 			currentState = CreateState(node.Type);
+			currentState.SetName("Conditional", testExitState.StateId, "Merge");
 			ifTrue.ContinueWith(currentState);
 			ifFalse.ContinueWith(currentState);
 			testExitState.AddExpression(
 					Expression.IfThenElse(
 							test,
-							ifTrue.EntryState.ToExpression(builder.VarState),
-							ifFalse.EntryState.ToExpression(builder.VarState)));
-			testExitState.OmitStateAssignment();
+							ifTrue.EntryState.ToExpression(vars),
+							ifFalse.EntryState.ToExpression(vars)));
 			return currentState.ResultExpression;
 		}
 	}
