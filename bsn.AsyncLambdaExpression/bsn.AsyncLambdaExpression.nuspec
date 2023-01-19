@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package>
+	<metadata>
+		<id>bsn.AsyncLambdaExpression</id>
+		<version>1.0.0</version>
+		<authors>avonwyss</authors>
+		<owners>avonwyss</owners>
+		<license type="expression">MIT</license>
+		<projectUrl>https://github.com/avonwyss/bsn.AsyncLambdaExpression</projectUrl>
+		<requireLicenseAcceptance>false</requireLicenseAcceptance>
+		<description>.NET Library for converting LINQ expression trees to awaitable async state machines.</description>
+		<copyright>Copyright 2022 Arsène von Wyss</copyright>
+		<tags>bsn async await linq expression</tags>
+		<dependencies>
+			<dependency id="System.Threading.Tasks.Extensions" version="4.0.0" />
+		</dependencies>
+	</metadata>
+	<files>
+		<file src="bin\$Configuration$\bsn.AsyncLambdaExpression.*" target="lib" />
+	</files>
+</package>

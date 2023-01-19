@@ -62,6 +62,7 @@
     <Reference Include="System.Xml.Linq" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="bsn.AsyncLambdaExpression.nuspec" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
