@@ -69,9 +69,7 @@ namespace bsn.AsyncLambdaExpression {
 		public async Task TestDelayCompiled(bool debug) {
 			var compiled = this.CompileAsyncLambda<Task<string>, string>(debug, paraInput =>
 					Expression.Block(
-							Expression.Call(typeof(Task).GetMethod(nameof(Task.Delay), new[] { typeof(int) }),
-											Expression.Constant(50))
-									.Await(false),
+							Expression.Call(typeof(Task), nameof(Task.Delay), null, Expression.Constant(50)).Await(false),
 							paraInput.Await(false)));
 			var result = await compiled(Task.FromResult("success")).ConfigureAwait(false);
 			Assert.Equal("success", result);

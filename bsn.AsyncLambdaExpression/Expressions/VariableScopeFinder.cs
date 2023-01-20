@@ -67,6 +67,15 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 			}
 		}
 
+		protected override Expression VisitLambda<T>(Expression<T> node) {
+			var ignored = node.Parameters.Where(this.ignore.Add).ToList();
+			try {
+				return base.VisitLambda(node);
+			} finally {
+				this.ignore.ExceptWith(ignored);
+			}
+		}
+
 		protected override Expression VisitBlock(BlockExpression node) {
 			this.blockSet.Add(node);
 			this.blockStack = this.blockStack.Push(node);
