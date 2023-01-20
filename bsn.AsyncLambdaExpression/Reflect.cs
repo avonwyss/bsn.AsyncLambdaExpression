@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -41,13 +41,13 @@ namespace bsn.AsyncLambdaExpression {
 
 		public static TType FormulaDefault {
 			get;
-		} = typeof(TType) == typeof(double) ? (TType)(object)double.NaN : default(TType);
+		} = typeof(TType) == typeof(double) ? (TType)(object)double.NaN : default;
 
 		public static PropertyInfo GetProperty<TResult>(Expression<Func<TType, TResult>> propertyAccess) {
-			if ((!(propertyAccess.Body is MemberExpression expression)) || !(expression.Member is PropertyInfo)) {
-				if ((propertyAccess.Body is MethodCallExpression callExpression) && (callExpression.Method.DeclaringType != null)) {
+			if (!(propertyAccess.Body is MemberExpression expression) || !(expression.Member is PropertyInfo)) {
+				if (propertyAccess.Body is MethodCallExpression callExpression && callExpression.Method.DeclaringType != null) {
 					foreach (var property in callExpression.Method.DeclaringType.GetProperties()) {
-						if ((property.GetGetMethod() == callExpression.Method) || (property.GetSetMethod()==callExpression.Method)) {
+						if (property.GetGetMethod() == callExpression.Method || property.GetSetMethod() == callExpression.Method) {
 							return property;
 						}
 					}
@@ -65,14 +65,14 @@ namespace bsn.AsyncLambdaExpression {
 		}
 
 		public static FieldInfo GetField<TResult>(Expression<Func<TType, TResult>> fieldAccess) {
-			if ((!(fieldAccess.Body is MemberExpression expression)) || !(expression.Member is FieldInfo) || ((FieldInfo)expression.Member).IsStatic) {
+			if (!(fieldAccess.Body is MemberExpression expression) || !(expression.Member is FieldInfo) || ((FieldInfo)expression.Member).IsStatic) {
 				throw new ArgumentException("Lambda expression is not an instance field access");
 			}
 			return (FieldInfo)expression.Member;
 		}
 
 		public static MethodInfo GetMethod(Expression<Action<TType>> methodCall) {
-			if ((!(methodCall.Body is MethodCallExpression expression)) || expression.Method.IsStatic) {
+			if (!(methodCall.Body is MethodCallExpression expression) || expression.Method.IsStatic) {
 				throw new ArgumentException("Lambda expression is not an instance method call");
 			}
 			return expression.Method;
@@ -108,13 +108,8 @@ namespace bsn.AsyncLambdaExpression {
 	public static class Reflect {
 		// ReSharper disable InconsistentNaming
 		private static readonly ConcurrentDictionary<Type, MethodInfo> meth_Delegate_Invoke = new();
-		private static readonly ConstructorInfo ctor_TaskCompletionSourceOfObject_Flags = Reflect.GetConstructor(() => new TaskCompletionSource<object>(default(TaskCreationOptions)));
-		private static readonly ConstructorInfo ctor_ValueTaskOfObject_Result = Reflect.GetConstructor(() => new ValueTask<object>(default(object)));
-		private static readonly ConstructorInfo ctor_ValueTaskOfObject_Task = Reflect.GetConstructor(() => new ValueTask<object>(default(Task<object>)));
-		private static readonly PropertyInfo prop_TaskCompletionSourceOfObject_Task = Reflect<TaskCompletionSource<object>>.GetProperty(s => s.Task);
-		private static readonly MethodInfo meth_TaskCompletionSourceOfObject_SetResult = Reflect<TaskCompletionSource<object>>.GetMethod(s => s.SetResult(default));
-		private static readonly MethodInfo meth_TaskCompletionSourceOfObject_SetException = Reflect<TaskCompletionSource<object>>.GetMethod(s => s.SetException(default(Exception)));
 		// ReSharper restore InconsistentNaming
+
 		private static readonly ConcurrentDictionary<(Type type, bool interfaces), Type[]> compatibleTypeCache = new();
 		private static readonly ConcurrentDictionary<Type, (MethodInfo meth_GetAwaiter, MethodInfo meth_ConfigureAwait)> awaitableInfos = new();
 		private static readonly ConcurrentDictionary<Type, (PropertyInfo prop_IsCompleted, MethodInfo meth_OnCompleted, MethodInfo meth_GetResult)> awaiterInfos = new();
@@ -141,47 +136,12 @@ namespace bsn.AsyncLambdaExpression {
 		private static (MethodInfo meth_GetAwaiter, MethodInfo meth_ConfigureAwait) GetAwaitableInfos(Type that) {
 			return awaitableInfos.GetOrAdd(that, t => {
 				var methAwaiter = t.GetMethod("GetAwaiter", BindingFlags.Instance | BindingFlags.Public, null, Type.EmptyTypes, null);
-				var methConfigureAwait = t.GetMethod("ConfigureAwait", BindingFlags.Instance | BindingFlags.Public, null, new [] {typeof(bool)}, null);
+				var methConfigureAwait = t.GetMethod("ConfigureAwait", BindingFlags.Instance | BindingFlags.Public, null, new[] { typeof(bool) }, null);
 				return (
-						(methAwaiter != null) && methAwaiter.ReturnType.IsAwaiter() ? methAwaiter : null, 
-						(methConfigureAwait != null) && methConfigureAwait.ReturnType.IsAwaitable() ? methConfigureAwait : null 
+						methAwaiter != null && methAwaiter.ReturnType.IsAwaiter() ? methAwaiter : null,
+						methConfigureAwait != null && methConfigureAwait.ReturnType.IsAwaitable() ? methConfigureAwait : null
 				);
 			});
-		}
-
-		private static Delegate CreateAwaiter(Type type) {
-			var methAwaitableGetAwaiter = type.GetAwaitableGetAwaiterMethod();
-			var varAwaitable = Expression.Parameter(type, "awaitable");
-			var varAwaiter = Expression.Variable(methAwaitableGetAwaiter.ReturnType, "state");
-			var varTaskSource = Expression.Variable(typeof(TaskCompletionSource<object>), "taskSource");
-			var varException = Expression.Variable(typeof(Exception), "ex");
-			var lambda = Expression.Lambda(typeof(Func<,>).MakeGenericType(type, typeof(ValueTask<object>)),
-					Expression.Block(typeof(ValueTask<object>), new[] { varAwaiter },
-							Expression.Condition( // if (awaiter = awaitable.GetAwaiter()).IsCompleted
-									Expression.Property(
-											Expression.Assign(varAwaiter, Expression.Call(varAwaitable, methAwaitableGetAwaiter)),
-											varAwaiter.Type.GetAwaiterIsCompletedProperty()),
-									Expression.New(ctor_ValueTaskOfObject_Result, // return new ValueTask((object)awaiter.GetResult())
-											Expression.Convert(
-													Expression.Call(varAwaiter, varAwaiter.Type.GetAwaiterGetResultMethod()),
-													typeof(object))),
-									Expression.Block(typeof(ValueTask<object>), new[] { varTaskSource },
-											Expression.Assign(varTaskSource, // taskSource = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously)
-													Expression.New(ctor_TaskCompletionSourceOfObject_Flags,
-															Expression.Constant(TaskCreationOptions.RunContinuationsAsynchronously))),
-											Expression.Call(varAwaiter, varAwaiter.Type.GetAwaiterOnCompletedMethod(), // awaiter.OnCompleted(() => try { taskSource.SetResult(awaiter.GetResult()) } catch (ex) { taskSource.setException(ex) }
-													Expression.Lambda<Action>(
-															Expression.TryCatch(
-																	Expression.Call(varTaskSource, meth_TaskCompletionSourceOfObject_SetResult,
-																			Expression.Convert(
-																					Expression.Call(varAwaiter, varAwaiter.Type.GetAwaiterGetResultMethod()),
-																					typeof(object))),
-																	Expression.Catch(varException,
-																			Expression.Call(varTaskSource, meth_TaskCompletionSourceOfObject_SetException, varException))))),
-											Expression.New(ctor_ValueTaskOfObject_Task, // return new ValueTask(taskSource.Task)
-													Expression.Property(varTaskSource, prop_TaskCompletionSourceOfObject_Task))))),
-					varAwaitable);
-			return lambda.Compile();
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -213,11 +173,11 @@ namespace bsn.AsyncLambdaExpression {
 				if (isCompleted?.PropertyType != typeof(bool)) {
 					return default;
 				}
-				var onCompleted = t.GetMethod("OnCompleted", BindingFlags.Instance|BindingFlags.Public, null, new[] {typeof(Action)}, null);
+				var onCompleted = t.GetMethod("OnCompleted", BindingFlags.Instance | BindingFlags.Public, null, new[] { typeof(Action) }, null);
 				if (onCompleted?.ReturnType != typeof(void)) {
 					return default;
 				}
-				var getResult = t.GetMethod("GetResult", BindingFlags.Instance|BindingFlags.Public, null, Type.EmptyTypes, null);
+				var getResult = t.GetMethod("GetResult", BindingFlags.Instance | BindingFlags.Public, null, Type.EmptyTypes, null);
 				if (getResult == null) {
 					return default;
 				}
@@ -236,12 +196,12 @@ namespace bsn.AsyncLambdaExpression {
 		}
 
 		public static Type GetAsyncReturnType(this Type that) {
-			if (that.IsGenericType && (that.GetGenericTypeDefinition() == typeof(ValueTask<>))) {
+			if (that.IsGenericType && that.GetGenericTypeDefinition() == typeof(ValueTask<>)) {
 				return that.GetGenericArguments()[0];
 			}
 			if (IsTask(that)) {
-				while ((that != typeof(object)) && (that != null)) {
-					if (that.IsGenericType && (that.GetGenericTypeDefinition() == typeof(Task<>))) {
+				while (that != typeof(object) && that != null) {
+					if (that.IsGenericType && that.GetGenericTypeDefinition() == typeof(Task<>)) {
 						return that.GetGenericArguments()[0];
 					}
 					that = that.BaseType;
@@ -267,14 +227,14 @@ namespace bsn.AsyncLambdaExpression {
 		}
 
 		public static FieldInfo GetStaticField<TResult>(Expression<Func<TResult>> fieldAccess) {
-			if ((!(fieldAccess.Body is MemberExpression expression)) || !(expression.Member is FieldInfo) || !((FieldInfo)expression.Member).IsStatic) {
+			if (!(fieldAccess.Body is MemberExpression expression) || !(expression.Member is FieldInfo) || !((FieldInfo)expression.Member).IsStatic) {
 				throw new ArgumentException("Lambda expression is not a static field access");
 			}
 			return (FieldInfo)expression.Member;
 		}
 
 		public static PropertyInfo GetStaticProperty<TResult>(Expression<Func<TResult>> propertyAccess) {
-			if ((!(propertyAccess.Body is MemberExpression expression)) || !(expression.Member is PropertyInfo)) {
+			if (!(propertyAccess.Body is MemberExpression expression) || !(expression.Member is PropertyInfo)) {
 				throw new ArgumentException("Lambda expression is not a property access");
 			}
 			return (PropertyInfo)expression.Member;
@@ -311,7 +271,7 @@ namespace bsn.AsyncLambdaExpression {
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static bool IsEnumerableInterface(this Type that) {
-			return that.IsInterface && that == typeof(IEnumerable) || IsGenericEnumerableInterface(that);
+			return (that.IsInterface && that == typeof(IEnumerable)) || IsGenericEnumerableInterface(that);
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -330,7 +290,7 @@ namespace bsn.AsyncLambdaExpression {
 		}
 
 		public static Type GetEnumerableItemType(this Type that) {
-			if (!that.TryGetEnumerableItemType(out Type result)) {
+			if (!that.TryGetEnumerableItemType(out var result)) {
 				throw new InvalidOperationException($"The type {that.FullName} does not implement IEnumerable");
 			}
 			return result;
@@ -341,7 +301,7 @@ namespace bsn.AsyncLambdaExpression {
 				itemType = null;
 				return false;
 			}
-			if (that.IsArray && that.GetArrayRank()==1) {
+			if (that.IsArray && that.GetArrayRank() == 1) {
 				itemType = that.GetElementType();
 			} else {
 				IEnumerable<Type> interfaces = that.GetInterfaces();
@@ -349,10 +309,10 @@ namespace bsn.AsyncLambdaExpression {
 					interfaces = interfaces.Prepend(that);
 				}
 				using (var e = interfaces
-						.Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEnumerable<>))
-						.Select(t => t.GetGenericArguments()[0])
-						.Where(t => !t.IsObject())
-						.GetEnumerator()) {
+						       .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+						       .Select(t => t.GetGenericArguments()[0])
+						       .Where(t => !t.IsObject())
+						       .GetEnumerator()) {
 					if (e.MoveNext()) {
 						// we have a generic enumeration type
 						itemType = e.Current;
@@ -410,9 +370,9 @@ namespace bsn.AsyncLambdaExpression {
 				var result = commonTypes.First();
 				foreach (var commonType in commonTypes) {
 					if (result.IsInterface) {
-						if (commonType.IsInterface 
-								? commonType.GetInterfaces().Length > result.GetInterfaces().Length
-								: !commonType.IsObject()) {
+						if (commonType.IsInterface
+								    ? commonType.GetInterfaces().Length > result.GetInterfaces().Length
+								    : !commonType.IsObject()) {
 							result = commonType;
 						}
 					} else if (GetCompatibleTypes(commonType, false).Count > GetCompatibleTypes(result, false).Count) {
@@ -480,7 +440,7 @@ namespace bsn.AsyncLambdaExpression {
 		}
 
 		public static ICollection<T> Yield<T>(this T that) {
-			return new[]{that};
+			return new[] { that };
 		}
 	}
 }

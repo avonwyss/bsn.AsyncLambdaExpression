@@ -73,6 +73,7 @@
     <Compile Include="Collections\Extensions.cs" />
     <Compile Include="Collections\ImmutableStack.cs" />
     <Compile Include="Collections\TypeAssignableSet.cs" />
+    <Compile Include="Expressions\AsyncChecker.cs" />
     <Compile Include="Expressions\ContinuationBuilder.cs" />
     <Compile Include="Expressions\ContinuationBuilder.VisitBinary.cs" />
     <Compile Include="Expressions\ContinuationBuilder.VisitBlock.cs" />
@@ -86,6 +87,7 @@
     <Compile Include="Expressions\ContinuationBuilder.VisitTry.cs" />
     <Compile Include="Expressions\ContinuationBuilder.VisitUnary.cs" />
     <Compile Include="Expressions\Optimizer.cs" />
+    <Compile Include="Expressions\SafeCodeChecker.cs" />
     <Compile Include="Expressions\VariableScopeFinder.cs" />
     <Compile Include="Expressions\VariableScopeSetter.cs" />
     <Compile Include="IAsyncStateMachineVariables.cs" />

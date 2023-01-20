@@ -1,35 +1,33 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
 
-using bsn.AsyncLambdaExpression.Collections;
-
 namespace bsn.AsyncLambdaExpression.Expressions {
 	internal partial class ContinuationBuilder {
 		protected override Expression VisitConditional(ConditionalExpression node) {
-			var test = Visit(node.Test);
-			var ifTrue = VisitAsFiber(node.IfTrue, false);
-			var ifFalse = VisitAsFiber(node.IfFalse, false);
+			var test = this.Visit(node.Test);
+			var ifTrue = this.VisitAsFiber(node.IfTrue, false);
+			var ifFalse = this.VisitAsFiber(node.IfFalse, false);
 			if (!ifTrue.IsAsync && !ifFalse.IsAsync) {
 				// no await inside conditional branches, proceed normally
 				return node.Update(test, ifTrue.Expression, ifFalse.Expression);
 			}
-			var testExitState = currentState;
+			var testExitState = this.currentState;
 			ifTrue.SetName("Conditional", testExitState.StateId, "True");
 			ifFalse.SetName("Conditional", testExitState.StateId, "False");
-			currentState = CreateState(node.Type);
-			currentState.SetName("Conditional", testExitState.StateId, "Merge");
-			ifTrue.ContinueWith(currentState);
-			ifFalse.ContinueWith(currentState);
+			this.currentState = this.CreateState(node.Type);
+			this.currentState.SetName("Conditional", testExitState.StateId, "Merge");
+			ifTrue.ContinueWith(this.currentState);
+			ifFalse.ContinueWith(this.currentState);
 			testExitState.AddExpression(
 					Expression.IfThenElse(
 							test,
-							ifTrue.EntryState.ToExpression(vars),
-							ifFalse.EntryState.ToExpression(vars)));
-			return currentState.ResultExpression;
+							ifTrue.EntryState.ToExpression(this.vars),
+							ifFalse.EntryState.ToExpression(this.vars)));
+			return this.currentState.ResultExpression;
 		}
 	}
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -15,8 +15,8 @@ namespace bsn.AsyncLambdaExpression {
 	public static class AsyncExpressionExtensions {
 		private const string MessageNotConvertedToAsyncStateMachine = "The lambda expression was not converted to an async state machine";
 
-		private static readonly MethodInfo meth_AwaitResult = typeof(AsyncExpressionExtensions).GetMethod(nameof(AwaitResult), BindingFlags.Static|BindingFlags.NonPublic|BindingFlags.Public|BindingFlags.DeclaredOnly);
-		private static readonly MethodInfo meth_AwaitVoid = typeof(AsyncExpressionExtensions).GetMethod(nameof(AwaitVoid), BindingFlags.Static|BindingFlags.NonPublic|BindingFlags.Public|BindingFlags.DeclaredOnly);
+		private static readonly MethodInfo meth_AwaitResult = typeof(AsyncExpressionExtensions).GetMethod(nameof(AwaitResult), BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.DeclaredOnly);
+		private static readonly MethodInfo meth_AwaitVoid = typeof(AsyncExpressionExtensions).GetMethod(nameof(AwaitVoid), BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.DeclaredOnly);
 
 		public static bool IsAwaitMethod(MethodInfo method) {
 			if (!method.IsGenericMethod) {
@@ -57,7 +57,7 @@ namespace bsn.AsyncLambdaExpression {
 					: meth_AwaitResult.MakeGenericMethod(expression.Type, methGetResult.ReturnType), expression);
 		}
 
-		public static Expression<T> Async<T>(this LambdaExpression expression, bool debug=false) {
+		public static Expression<T> Async<T>(this LambdaExpression expression, bool debug = false) {
 			return Expression.Lambda<T>(new AsyncStateMachineBuilder(expression, typeof(T).GetDelegateInvokeMethod().ReturnType).CreateStateMachineBody(debug), expression.Parameters);
 		}
 
@@ -75,6 +75,18 @@ namespace bsn.AsyncLambdaExpression {
 		internal static Expression Optimize(this Expression expression) {
 			var optimizer = new Optimizer();
 			return optimizer.Visit(expression);
+		}
+
+		internal static bool ContainsAsyncCode(this Expression expression, bool labelAndGotoAreAsync) {
+			var awaitCallChecker = new AsyncChecker(labelAndGotoAreAsync);
+			awaitCallChecker.Visit(expression);
+			return awaitCallChecker.HasAsyncCode;
+		}
+
+		internal static bool IsSafeCode(this Expression expression) {
+			var safeCodeChecker = new SafeCodeChecker();
+			safeCodeChecker.Visit(expression);
+			return !safeCodeChecker.ContainsUnsafeCode;
 		}
 	}
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -17,7 +17,7 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 			if (ignore != null) {
 				this.ignore.UnionWith(ignore);
 			}
-			IsIgnored = this.ignore.Contains;
+			this.IsIgnored = this.ignore.Contains;
 		}
 
 		public Func<ParameterExpression, bool> IsIgnored {
@@ -25,67 +25,66 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 		}
 
 		public bool IsToRemove(ParameterExpression variable) {
-			return variableBlock.ContainsKey(variable) && !isread.Contains(variable);
+			return this.variableBlock.ContainsKey(variable) && !this.isread.Contains(variable);
 		}
 
 		protected override Expression VisitBinary(BinaryExpression node) {
-			var unread = node.NodeType == ExpressionType.Assign && 
-			             node.Left is ParameterExpression variable && 
-			             !ignore.Contains(variable) && 
-			             isread.Add(variable);
+			var unread = node.NodeType == ExpressionType.Assign &&
+			             node.Left is ParameterExpression variable &&
+			             !this.ignore.Contains(variable) && this.isread.Add(variable);
 			try {
 				return base.VisitBinary(node);
 			} finally {
 				if (unread) {
-					isread.Remove((ParameterExpression)node.Left);
+					this.isread.Remove((ParameterExpression)node.Left);
 				}
 			}
 		}
 
 		protected override Expression VisitParameter(ParameterExpression node) {
-			if (!ignore.Contains(node)) {
-				if (variableBlock.TryGetValue(node, out var stack)) {
-					while (!stack.IsEmpty && !blockSet.Contains(stack.Peek())) {
+			if (!this.ignore.Contains(node)) {
+				if (this.variableBlock.TryGetValue(node, out var stack)) {
+					while (!stack.IsEmpty && !this.blockSet.Contains(stack.Peek())) {
 						stack = stack.Pop();
 					}
-					variableBlock[node] = stack;
+					this.variableBlock[node] = stack;
 				} else {
-					variableBlock.Add(node, blockStack);
+					this.variableBlock.Add(node, this.blockStack);
 				}
-				isread.Add(node);
+				this.isread.Add(node);
 			}
 			return node;
 		}
 
 		protected override CatchBlock VisitCatchBlock(CatchBlock node) {
-			var ignored = node.Variable != null && ignore.Add(node.Variable);
+			var ignored = node.Variable != null && this.ignore.Add(node.Variable);
 			try {
-				return node.Update(node.Variable, Visit(node.Filter), Visit(node.Body));
+				return node.Update(node.Variable, this.Visit(node.Filter), this.Visit(node.Body));
 			} finally {
 				if (ignored) {
-					ignore.Remove(node.Variable);
+					this.ignore.Remove(node.Variable);
 				}
 			}
 		}
 
 		protected override Expression VisitBlock(BlockExpression node) {
-			blockSet.Add(node);
-			blockStack = blockStack.Push(node);
+			this.blockSet.Add(node);
+			this.blockStack = this.blockStack.Push(node);
 			try {
 				// Note: variable declarations must not be processed
 				foreach (var expression in node.Expressions) {
-					Visit(expression);
+					this.Visit(expression);
 				}
 				return node;
 			} finally {
-				blockSet.Remove(node);
-				blockStack = blockStack.Pop();
+				this.blockSet.Remove(node);
+				this.blockStack = this.blockStack.Pop();
 			}
 		}
 
 		public ILookup<BlockExpression, ParameterExpression> GetBlockVariables() {
-			return variableBlock
-					.Where(p => isread.Contains(p.Key))
+			return this.variableBlock
+					.Where(p => this.isread.Contains(p.Key))
 					.ToLookup(p => p.Value.PeekOrDefault(), p => p.Key);
 		}
 	}

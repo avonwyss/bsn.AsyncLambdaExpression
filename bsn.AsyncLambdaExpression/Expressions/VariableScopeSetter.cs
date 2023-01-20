@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Linq.Expressions;
 
@@ -15,7 +15,7 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 		}
 
 		protected override Expression VisitBinary(BinaryExpression node) {
-			if (node.NodeType == ExpressionType.Assign && node.Left is ParameterExpression variable && toremove(variable)) {
+			if (node.NodeType == ExpressionType.Assign && node.Left is ParameterExpression variable && this.toremove(variable)) {
 				return node.Right;
 			}
 			return base.VisitBinary(node);
@@ -23,8 +23,8 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 
 		protected override Expression VisitBlock(BlockExpression node) {
 			var block = node.Update(
-					node.Variables.Where(unmanaged).Concat(blockVariables[node]), 
-					node.Expressions.Select(Visit));
+					node.Variables.Where(this.unmanaged).Concat(this.blockVariables[node]),
+					node.Expressions.Select(this.Visit));
 			if (block.Variables.Count > 0) {
 				return block;
 			}

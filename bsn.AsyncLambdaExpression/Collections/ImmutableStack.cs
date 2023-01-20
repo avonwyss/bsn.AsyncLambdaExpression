@@ -1,11 +1,11 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
 namespace bsn.AsyncLambdaExpression.Collections {
 	public sealed class ImmutableStack<T>: IEnumerable<T> {
-		public static readonly ImmutableStack<T> Empty = new ImmutableStack<T>(null, default);
+		public static readonly ImmutableStack<T> Empty = new(null, default);
 
 		private readonly ImmutableStack<T> parent;
 		private readonly T value;
@@ -17,31 +17,31 @@ namespace bsn.AsyncLambdaExpression.Collections {
 
 		public bool IsEmpty {
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			get => parent == null;
+			get => this.parent == null;
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private void AssertNotEmpty() {
-			if (IsEmpty) {
+			if (this.IsEmpty) {
 				throw new InvalidOperationException("Stack is empty");
 			}
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public ImmutableStack<T> Pop() {
-			AssertNotEmpty();
-			return parent;
+			this.AssertNotEmpty();
+			return this.parent;
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public T Peek() {
-			AssertNotEmpty();
-			return value;
+			this.AssertNotEmpty();
+			return this.value;
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public T PeekOrDefault() {
-			return value;
+			return this.value;
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -56,7 +56,7 @@ namespace bsn.AsyncLambdaExpression.Collections {
 		}
 
 		IEnumerator IEnumerable.GetEnumerator() {
-			return GetEnumerator();
+			return this.GetEnumerator();
 		}
 	}
 }

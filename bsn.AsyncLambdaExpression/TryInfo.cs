@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Linq;
 
@@ -10,7 +10,7 @@ namespace bsn.AsyncLambdaExpression {
 			Debug.Assert(finallyState == null || finallyState.StateId > 0);
 			this.FinallyState = finallyState;
 			Debug.Assert(rethrowState != null);
-			RethrowState = rethrowState;
+			this.RethrowState = rethrowState;
 			Debug.Assert(exitState != null);
 			this.ExitState = exitState;
 		}

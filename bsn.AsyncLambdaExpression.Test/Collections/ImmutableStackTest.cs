@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 using Xunit;
 using Xunit.Abstractions;
@@ -33,9 +33,6 @@ namespace bsn.AsyncLambdaExpression.Collections {
 			var stack = ImmutableStack<int>.Empty;
 			stack = stack.Push(1);
 			Assert.Equal(1, stack.Peek());
-			var enumerator = stack.GetEnumerator();
-			stack.Peek();
-			enumerator.Reset();
 		}
 
 		[Fact]
