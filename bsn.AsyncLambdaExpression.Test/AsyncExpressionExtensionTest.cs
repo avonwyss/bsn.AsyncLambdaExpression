@@ -33,10 +33,14 @@ namespace bsn.AsyncLambdaExpression {
 		private Func<TInput, Task<TResult>> CompileAsyncLambda<TInput, TResult>(bool debug, Func<ParameterExpression, Expression> bodyFactory) {
 			var paraInput = Expression.Parameter(typeof(TInput), "input");
 			var exprLambda = Expression.Lambda<Func<TInput, TResult>>(bodyFactory(paraInput), paraInput);
+			return this.CompileAsyncLambda<Func<TInput, Task<TResult>>>(debug, exprLambda);
+		}
+
+		private T CompileAsyncLambda<T>(bool debug, LambdaExpression exprLambda) {
 			this.Output.WriteLine("==> Original Lambda");
 			this.Output.WriteLine(exprLambda.ToString(BuiltinRenderer.DebugView));
 			exprLambda.Compile();
-			var exprAsync = exprLambda.Async<Func<TInput, Task<TResult>>>(debug);
+			var exprAsync = exprLambda.Async<T>(debug);
 			this.Output.WriteLine("");
 			this.Output.WriteLine("==> Async Lambda");
 			this.Output.WriteLine(exprAsync.ToString(BuiltinRenderer.DebugView));
@@ -46,9 +50,75 @@ namespace bsn.AsyncLambdaExpression {
 		[Theory]
 		[InlineData(true)]
 		[InlineData(false)]
+		public async Task TestReturnTaskSyncCompiled(bool debug) {
+			var compiled = this.CompileAsyncLambda<Func<Task>>(debug, Expression.Lambda<Action>(
+					Expression.Empty()));
+			await compiled().ConfigureAwait(false);
+		}
+
+		[Theory]
+		[InlineData(true)]
+		[InlineData(false)]
+		public async Task TestReturnTaskTypedSyncCompiled(bool debug) {
+			var compiled = this.CompileAsyncLambda<Func<Task<string>>>(debug, Expression.Lambda<Action>(
+					Expression.Constant("success")));
+			var result = await compiled().ConfigureAwait(false);
+			Assert.Equal("success", result);
+		}
+
+		[Theory]
+		[InlineData(true)]
+		[InlineData(false)]
+		public async Task TestReturnValueTaskSyncCompiled(bool debug) {
+			var compiled = this.CompileAsyncLambda<Func<ValueTask>>(debug, Expression.Lambda<Action>(
+					Expression.Empty()));
+			await compiled().ConfigureAwait(false);
+		}
+
+		[Theory]
+		[InlineData(true)]
+		[InlineData(false)]
+		public async Task TestReturnValueTaskTypedSyncCompiled(bool debug) {
+			var compiled = this.CompileAsyncLambda<Func<ValueTask<string>>>(debug, Expression.Lambda<Action>(
+					Expression.Constant("success")));
+			var result = await compiled().ConfigureAwait(false);
+			Assert.Equal("success", result);
+		}
+
+		[Theory]
+		[InlineData(true)]
+		[InlineData(false)]
+		public async Task TestReturnTaskAsyncCompiled(bool debug) {
+			var compiled = this.CompileAsyncLambda<Func<Task>>(debug, Expression.Lambda<Action>(
+					Expression.Constant(Task.CompletedTask).AwaitConfigured(false)));
+			await compiled().ConfigureAwait(false);
+		}
+
+		[Theory]
+		[InlineData(true)]
+		[InlineData(false)]
+		public async Task TestReturnValueTaskAsyncCompiled(bool debug) {
+			var compiled = this.CompileAsyncLambda<Func<ValueTask>>(debug, Expression.Lambda<Action>(
+					Expression.Constant(Task.CompletedTask).AwaitConfigured(false)));
+			await compiled().ConfigureAwait(false);
+		}
+
+		[Theory]
+		[InlineData(true)]
+		[InlineData(false)]
+		public async Task TestReturnValueTaskTypedAsyncCompiled(bool debug) {
+			var compiled = this.CompileAsyncLambda<Func<ValueTask<string>>>(debug, Expression.Lambda<Action>(
+					Expression.Constant(Task.FromResult("success")).AwaitConfigured(false)));
+			var result = await compiled().ConfigureAwait(false);
+			Assert.Equal("success", result);
+		}
+
+		[Theory]
+		[InlineData(true)]
+		[InlineData(false)]
 		public async Task TestCompletedCompiled(bool debug) {
 			var compiled = this.CompileAsyncLambda<Task<string>, string>(debug, paraInput =>
-					paraInput.Await(false));
+					paraInput.AwaitConfigured(false));
 			var result = await compiled(Task.FromResult("success")).ConfigureAwait(false);
 			Assert.Equal("success", result);
 		}
@@ -69,8 +139,8 @@ namespace bsn.AsyncLambdaExpression {
 		public async Task TestDelayCompiled(bool debug) {
 			var compiled = this.CompileAsyncLambda<Task<string>, string>(debug, paraInput =>
 					Expression.Block(
-							Expression.Call(typeof(Task), nameof(Task.Delay), null, Expression.Constant(50)).Await(false),
-							paraInput.Await(false)));
+							Expression.Call(typeof(Task), nameof(Task.Delay), null, Expression.Constant(50)).AwaitConfigured(false),
+							paraInput.AwaitConfigured(false)));
 			var result = await compiled(Task.FromResult("success")).ConfigureAwait(false);
 			Assert.Equal("success", result);
 		}
@@ -81,8 +151,8 @@ namespace bsn.AsyncLambdaExpression {
 		public async Task TestBlockCompiled(bool debug) {
 			var compiled = this.CompileAsyncLambda<Task<string>, string>(debug, paraInput =>
 					Expression.Block(
-							Expression.Constant(Task.FromResult("not-used")).Await(false),
-							paraInput.Await(false)));
+							Expression.Constant(Task.FromResult("not-used")).AwaitConfigured(false),
+							paraInput.AwaitConfigured(false)));
 			var result = await compiled(Task.FromResult("success")).ConfigureAwait(false);
 			Assert.Equal("success", result);
 		}
@@ -105,7 +175,7 @@ namespace bsn.AsyncLambdaExpression {
 		public async Task TestBinaryAsyncSyncCompiled(bool debug) {
 			var compiled = this.CompileAsyncLambda<int, int>(debug, paraInput =>
 					Expression.Add(
-							Expression.Constant(Task.FromResult(1)).Await(false),
+							Expression.Constant(Task.FromResult(1)).AwaitConfigured(false),
 							paraInput));
 			var result = await compiled(2).ConfigureAwait(false);
 			Assert.Equal(3, result);
@@ -118,7 +188,7 @@ namespace bsn.AsyncLambdaExpression {
 			var compiled = this.CompileAsyncLambda<Task<int>, int>(debug, paraInput =>
 					Expression.Add(
 							Expression.Constant(1),
-							paraInput.Await(false)));
+							paraInput.AwaitConfigured(false)));
 			var result = await compiled(Task.FromResult(2)).ConfigureAwait(false);
 			Assert.Equal(3, result);
 		}
@@ -129,8 +199,8 @@ namespace bsn.AsyncLambdaExpression {
 		public async Task TestBinaryAsyncAsyncCompiled(bool debug) {
 			var compiled = this.CompileAsyncLambda<Task<int>, int>(debug, paraInput =>
 					Expression.Add(
-							Expression.Constant(Task.FromResult(1)).Await(false),
-							paraInput.Await(false)));
+							Expression.Constant(Task.FromResult(1)).AwaitConfigured(false),
+							paraInput.AwaitConfigured(false)));
 			var result = await compiled(Task.FromResult(2)).ConfigureAwait(false);
 			Assert.Equal(3, result);
 		}
@@ -144,7 +214,7 @@ namespace bsn.AsyncLambdaExpression {
 			var compiled = this.CompileAsyncLambda<Task<bool>, int>(debug, paraInput =>
 					Expression.Block(varTemp.Yield(),
 							Expression.IfThen(
-									paraInput.Await(false),
+									paraInput.AwaitConfigured(false),
 									Expression.Block(
 											Expression.Assign(
 													varTemp,
@@ -152,11 +222,11 @@ namespace bsn.AsyncLambdaExpression {
 											Expression.Goto(lblTarget))),
 							Expression.Assign(
 									varTemp,
-									Expression.Constant(Task.FromResult(-1)).Await(false)),
+									Expression.Constant(Task.FromResult(-1)).AwaitConfigured(false)),
 							Expression.Label(lblTarget),
 							Expression.Add(
 									varTemp,
-									Expression.Constant(Task.FromResult(2)).Await(false))));
+									Expression.Constant(Task.FromResult(2)).AwaitConfigured(false))));
 			var result = await compiled(Task.FromResult(true)).ConfigureAwait(false);
 			Assert.Equal(3, result);
 		}
@@ -194,7 +264,7 @@ namespace bsn.AsyncLambdaExpression {
 			var varEx = Expression.Variable(typeof(Exception), "ex");
 			var compiled = this.CompileAsyncLambda<Task<bool>, int>(debug, paraInput =>
 					Expression.TryCatch(
-							Throw<Task<int>>().Await(false),
+							Throw<Task<int>>().AwaitConfigured(false),
 							Expression.Catch(varEx,
 									Expression.Constant(-1))));
 			var result = await compiled(Task.FromResult(true)).ConfigureAwait(false);
@@ -211,10 +281,10 @@ namespace bsn.AsyncLambdaExpression {
 							Expression.TryFinally(
 									Expression.Assign(
 											varResult,
-											paraInput.Await(false)),
+											paraInput.AwaitConfigured(false)),
 									Expression.AddAssign(
 											varResult,
-											Expression.Constant(Task.FromResult(1)).Await(false))),
+											Expression.Constant(Task.FromResult(1)).AwaitConfigured(false))),
 							varResult));
 			var result = await compiled(Task.FromResult(2)).ConfigureAwait(false);
 			Assert.Equal(3, result);
@@ -282,14 +352,14 @@ namespace bsn.AsyncLambdaExpression {
 			var compiled = this.CompileAsyncLambda<Task<int>, int>(debug, paraInput =>
 					Expression.Block(varResult.Yield(),
 							Expression.TryCatchFinally(
-									Throw<Task<int>>("Exception should be swallowed").Await(false),
+									Throw<Task<int>>("Exception should be swallowed").AwaitConfigured(false),
 									Expression.AddAssign(
 											varResult,
-											Expression.Constant(Task.FromResult(1)).Await(false)),
+											Expression.Constant(Task.FromResult(1)).AwaitConfigured(false)),
 									Expression.Catch(varEx,
 											Expression.Assign(
 													varResult,
-													paraInput.Await(false)))),
+													paraInput.AwaitConfigured(false)))),
 							varResult));
 			var result = await compiled(Task.FromResult(2)).ConfigureAwait(false);
 			Assert.Equal(3, result);
@@ -327,7 +397,7 @@ namespace bsn.AsyncLambdaExpression {
 					Expression.Block(varResult.Yield(),
 							Expression.TryCatchFinally(
 									Expression.TryCatchFinally(
-											Throw<Task<int>>("Exception should be swallowed").Await(false),
+											Throw<Task<int>>("Exception should be swallowed").AwaitConfigured(false),
 											Expression.AddAssign(
 													varResult,
 													Expression.Constant(1)),
@@ -357,7 +427,7 @@ namespace bsn.AsyncLambdaExpression {
 					Expression.Block(varResult.Yield(),
 							Expression.TryCatchFinally(
 									Expression.TryCatchFinally(
-											Throw<Task<int>>("Exception should be swallowed").Await(false),
+											Throw<Task<int>>("Exception should be swallowed").AwaitConfigured(false),
 											Expression.AddAssign(
 													varResult,
 													Expression.Constant(1)),
@@ -424,9 +494,9 @@ namespace bsn.AsyncLambdaExpression {
 			var compiled = this.CompileAsyncLambda<Task<int>, int>(true, paraInput =>
 					Expression.TryFault(
 							Expression.Add(
-									paraInput.Await(false),
+									paraInput.AwaitConfigured(false),
 									Expression.Constant(1)),
-							Expression.Constant(Task.FromResult(-1)).Await(false)));
+							Expression.Constant(Task.FromResult(-1)).AwaitConfigured(false)));
 			var result = await compiled(Task.FromResult(2)).ConfigureAwait(false);
 			Assert.Equal(3, result);
 		}
@@ -445,12 +515,12 @@ namespace bsn.AsyncLambdaExpression {
 											Expression.Block(
 													Expression.IfThen(
 															Expression.LessThanOrEqual(
-																	paraInput.Await(false),
+																	paraInput.AwaitConfigured(false),
 																	varResult),
 															Expression.Break(lblBreak, varResult)),
 													Expression.AddAssign(
 															varResult,
-															Expression.Constant(Task.FromResult(1)).Await(false)),
+															Expression.Constant(Task.FromResult(1)).AwaitConfigured(false)),
 													Expression.IfThen(
 															Expression.LessThanOrEqual(
 																	Expression.Constant(0),
@@ -458,7 +528,7 @@ namespace bsn.AsyncLambdaExpression {
 															Expression.Continue(lblContinue)),
 													Throw<int>()),
 											lblBreak, lblContinue)),
-							Expression.Constant(Task.FromResult(1)).Await(false)));
+							Expression.Constant(Task.FromResult(1)).AwaitConfigured(false)));
 			var result = await compiled(Task.FromResult(2)).ConfigureAwait(false);
 			Assert.Equal(3, result);
 		}
@@ -500,7 +570,7 @@ namespace bsn.AsyncLambdaExpression {
 		[InlineData(false)]
 		public async Task TestSwitchSyncSyncCompiled(bool debug) {
 			var compiled = this.CompileAsyncLambda<Task<int>, int>(debug, paraInput =>
-					Expression.Switch(paraInput.Await(false),
+					Expression.Switch(paraInput.AwaitConfigured(false),
 							Expression.Constant(-1),
 							Expression.SwitchCase(
 									Throw<int>(),
@@ -517,13 +587,13 @@ namespace bsn.AsyncLambdaExpression {
 		[InlineData(false)]
 		public async Task TestSwitchSyncAsyncCompiled(bool debug) {
 			var compiled = this.CompileAsyncLambda<Task<int>, int>(debug, paraInput =>
-					Expression.Switch(paraInput.Await(false),
-							Expression.Constant(Task.FromResult(-1)).Await(false),
+					Expression.Switch(paraInput.AwaitConfigured(false),
+							Expression.Constant(Task.FromResult(-1)).AwaitConfigured(false),
 							Expression.SwitchCase(
-									Throw<Task<int>>().Await(false),
+									Throw<Task<int>>().AwaitConfigured(false),
 									Expression.Constant(1)),
 							Expression.SwitchCase(
-									Throw<Task<int>>().Await(false),
+									Throw<Task<int>>().AwaitConfigured(false),
 									Expression.Constant(2))));
 			var result = await compiled(Task.FromResult(0)).ConfigureAwait(false);
 			Assert.Equal(-1, result);
@@ -534,14 +604,14 @@ namespace bsn.AsyncLambdaExpression {
 		[InlineData(false)]
 		public async Task TestSwitchAsyncSyncCompiled(bool debug) {
 			var compiled = this.CompileAsyncLambda<Task<int>, int>(debug, paraInput =>
-					Expression.Switch(paraInput.Await(false),
+					Expression.Switch(paraInput.AwaitConfigured(false),
 							Expression.Constant(-1),
 							Expression.SwitchCase(
 									Throw<int>(),
-									Expression.Constant(Task.FromResult(1)).Await(false)),
+									Expression.Constant(Task.FromResult(1)).AwaitConfigured(false)),
 							Expression.SwitchCase(
 									Throw<int>(),
-									Expression.Constant(Task.FromResult(2)).Await(false))));
+									Expression.Constant(Task.FromResult(2)).AwaitConfigured(false))));
 			var result = await compiled(Task.FromResult(0)).ConfigureAwait(false);
 			Assert.Equal(-1, result);
 		}
@@ -551,14 +621,14 @@ namespace bsn.AsyncLambdaExpression {
 		[InlineData(false)]
 		public async Task TestSwitchAsyncAsyncCompiled(bool debug) {
 			var compiled = this.CompileAsyncLambda<Task<int>, int>(debug, paraInput =>
-					Expression.Switch(paraInput.Await(false),
-							Expression.Constant(Task.FromResult(-1)).Await(false),
+					Expression.Switch(paraInput.AwaitConfigured(false),
+							Expression.Constant(Task.FromResult(-1)).AwaitConfigured(false),
 							Expression.SwitchCase(
-									Throw<Task<int>>().Await(false),
-									Expression.Constant(Task.FromResult(1)).Await(false)),
+									Throw<Task<int>>().AwaitConfigured(false),
+									Expression.Constant(Task.FromResult(1)).AwaitConfigured(false)),
 							Expression.SwitchCase(
-									Throw<Task<int>>().Await(false),
-									Expression.Constant(Task.FromResult(2)).Await(false))));
+									Throw<Task<int>>().AwaitConfigured(false),
+									Expression.Constant(Task.FromResult(2)).AwaitConfigured(false))));
 			var result = await compiled(Task.FromResult(0)).ConfigureAwait(false);
 			Assert.Equal(-1, result);
 		}
@@ -568,14 +638,14 @@ namespace bsn.AsyncLambdaExpression {
 		[InlineData(false)]
 		public async Task TestSwitchMixSAAsyncCompiled(bool debug) {
 			var compiled = this.CompileAsyncLambda<Task<int>, int>(debug, paraInput =>
-					Expression.Switch(paraInput.Await(false),
-							Expression.Constant(Task.FromResult(-1)).Await(false),
+					Expression.Switch(paraInput.AwaitConfigured(false),
+							Expression.Constant(Task.FromResult(-1)).AwaitConfigured(false),
 							Expression.SwitchCase(
-									Throw<Task<int>>().Await(false),
+									Throw<Task<int>>().AwaitConfigured(false),
 									Expression.Constant(1)),
 							Expression.SwitchCase(
-									Throw<Task<int>>().Await(false),
-									Expression.Constant(Task.FromResult(2)).Await(false))));
+									Throw<Task<int>>().AwaitConfigured(false),
+									Expression.Constant(Task.FromResult(2)).AwaitConfigured(false))));
 			var result = await compiled(Task.FromResult(0)).ConfigureAwait(false);
 			Assert.Equal(-1, result);
 		}
@@ -585,14 +655,14 @@ namespace bsn.AsyncLambdaExpression {
 		[InlineData(false)]
 		public async Task TestSwitchMixASAsyncCompiled(bool debug) {
 			var compiled = this.CompileAsyncLambda<Task<int>, int>(debug, paraInput =>
-					Expression.Switch(paraInput.Await(false),
-							Expression.Constant(Task.FromResult(-1)).Await(false),
+					Expression.Switch(paraInput.AwaitConfigured(false),
+							Expression.Constant(Task.FromResult(-1)).AwaitConfigured(false),
 							Expression.SwitchCase(
-									Throw<Task<int>>().Await(false),
-									Expression.Constant(Task.FromResult(1)).Await(false),
+									Throw<Task<int>>().AwaitConfigured(false),
+									Expression.Constant(Task.FromResult(1)).AwaitConfigured(false),
 									Expression.Constant(4)),
 							Expression.SwitchCase(
-									Throw<Task<int>>().Await(false),
+									Throw<Task<int>>().AwaitConfigured(false),
 									Expression.Constant(2),
 									Expression.Constant(3))));
 			var result = await compiled(Task.FromResult(0)).ConfigureAwait(false);
@@ -617,7 +687,7 @@ namespace bsn.AsyncLambdaExpression {
 		public async Task TestOrElseAsyncSyncCompiled(bool debug) {
 			var compiled = this.CompileAsyncLambda<Task<bool>, bool>(debug, paraInput =>
 					Expression.OrElse(
-							paraInput.Await(false),
+							paraInput.AwaitConfigured(false),
 							Throw<bool>()));
 			var result = await compiled(Task.FromResult(true)).ConfigureAwait(false);
 			Assert.True(result);
@@ -630,7 +700,7 @@ namespace bsn.AsyncLambdaExpression {
 			var compiled = this.CompileAsyncLambda<bool, bool>(debug, paraInput =>
 					Expression.OrElse(
 							paraInput,
-							Throw<Task<bool>>().Await(false)));
+							Throw<Task<bool>>().AwaitConfigured(false)));
 			var result = await compiled(true).ConfigureAwait(false);
 			Assert.True(result);
 		}
@@ -641,8 +711,8 @@ namespace bsn.AsyncLambdaExpression {
 		public async Task TestOrElseAsyncAsyncCompiled(bool debug) {
 			var compiled = this.CompileAsyncLambda<Task<bool>, bool>(debug, paraInput =>
 					Expression.OrElse(
-							paraInput.Await(false),
-							Throw<Task<bool>>().Await(false)));
+							paraInput.AwaitConfigured(false),
+							Throw<Task<bool>>().AwaitConfigured(false)));
 			var result = await compiled(Task.FromResult(true)).ConfigureAwait(false);
 			Assert.True(result);
 		}
@@ -665,7 +735,7 @@ namespace bsn.AsyncLambdaExpression {
 		public async Task TestAndAlsoAsyncSyncCompiled(bool debug) {
 			var compiled = this.CompileAsyncLambda<Task<bool>, bool>(debug, paraInput =>
 					Expression.AndAlso(
-							paraInput.Await(false),
+							paraInput.AwaitConfigured(false),
 							Throw<bool>()));
 			var result = await compiled(Task.FromResult(false)).ConfigureAwait(false);
 			Assert.False(result);
@@ -678,7 +748,7 @@ namespace bsn.AsyncLambdaExpression {
 			var compiled = this.CompileAsyncLambda<bool, bool>(debug, paraInput =>
 					Expression.AndAlso(
 							paraInput,
-							Throw<Task<bool>>().Await(false)));
+							Throw<Task<bool>>().AwaitConfigured(false)));
 			var result = await compiled(false).ConfigureAwait(false);
 			Assert.False(result);
 		}
@@ -689,8 +759,8 @@ namespace bsn.AsyncLambdaExpression {
 		public async Task TestAndAlsoAsyncAsyncCompiled(bool debug) {
 			var compiled = this.CompileAsyncLambda<Task<bool>, bool>(debug, paraInput =>
 					Expression.AndAlso(
-							paraInput.Await(false),
-							Throw<Task<bool>>().Await(false)));
+							paraInput.AwaitConfigured(false),
+							Throw<Task<bool>>().AwaitConfigured(false)));
 			var result = await compiled(Task.FromResult(false)).ConfigureAwait(false);
 			Assert.False(result);
 		}
@@ -701,7 +771,7 @@ namespace bsn.AsyncLambdaExpression {
 		public async Task TestConditionalSyncSyncCompiled(bool debug) {
 			var compiled = this.CompileAsyncLambda<Task<bool>, string>(debug, paraInput =>
 					Expression.Condition(
-							paraInput.Await(false),
+							paraInput.AwaitConfigured(false),
 							Expression.Constant("success"),
 							Throw<string>()));
 			var result = await compiled(Task.FromResult(true)).ConfigureAwait(false);
@@ -714,8 +784,8 @@ namespace bsn.AsyncLambdaExpression {
 		public async Task TestConditionalAsyncSyncCompiled(bool debug) {
 			var compiled = this.CompileAsyncLambda<Task<bool>, string>(debug, paraInput =>
 					Expression.Condition(
-							paraInput.Await(false),
-							Expression.Constant(Task.FromResult("success")).Await(false),
+							paraInput.AwaitConfigured(false),
+							Expression.Constant(Task.FromResult("success")).AwaitConfigured(false),
 							Throw<string>()));
 			var result = await compiled(Task.FromResult(true)).ConfigureAwait(false);
 			Assert.Equal("success", result);
@@ -727,9 +797,9 @@ namespace bsn.AsyncLambdaExpression {
 		public async Task TestConditionalSyncAsyncCompiled(bool debug) {
 			var compiled = this.CompileAsyncLambda<Task<bool>, string>(debug, paraInput =>
 					Expression.Condition(
-							paraInput.Await(false),
+							paraInput.AwaitConfigured(false),
 							Expression.Constant("success"),
-							Throw<Task<string>>().Await(false)));
+							Throw<Task<string>>().AwaitConfigured(false)));
 			var result = await compiled(Task.FromResult(true)).ConfigureAwait(false);
 			Assert.Equal("success", result);
 		}
@@ -740,9 +810,9 @@ namespace bsn.AsyncLambdaExpression {
 		public async Task TestConditionalAsyncAsyncCompiled(bool debug) {
 			var compiled = this.CompileAsyncLambda<Task<bool>, string>(debug, paraInput =>
 					Expression.Condition(
-							paraInput.Await(false),
-							Expression.Constant(Task.FromResult("success")).Await(false),
-							Throw<Task<string>>().Await(false)));
+							paraInput.AwaitConfigured(false),
+							Expression.Constant(Task.FromResult("success")).AwaitConfigured(false),
+							Throw<Task<string>>().AwaitConfigured(false)));
 			var result = await compiled(Task.FromResult(true)).ConfigureAwait(false);
 			Assert.Equal("success", result);
 		}
@@ -754,7 +824,7 @@ namespace bsn.AsyncLambdaExpression {
 
 		[Fact]
 		public void TestInvalidConfigureAwait() {
-			Assert.Throws<ArgumentException>(() => Expression.Constant(Task.Yield()).Await(false));
+			Assert.Throws<ArgumentException>(() => Expression.Constant(Task.Yield()).AwaitConfigured(false));
 		}
 
 		[Fact]
@@ -766,7 +836,7 @@ namespace bsn.AsyncLambdaExpression {
 
 		[Fact]
 		public void TestAwaitConfiguredType() {
-			var exprAwait = Expression.Constant(Task.FromResult("test")).Await(false);
+			var exprAwait = Expression.Constant(Task.FromResult("test")).AwaitConfigured(false);
 			this.Output.WriteLine(exprAwait.ToString(BuiltinRenderer.DebugView));
 			Assert.Equal(typeof(string), exprAwait.Type);
 		}

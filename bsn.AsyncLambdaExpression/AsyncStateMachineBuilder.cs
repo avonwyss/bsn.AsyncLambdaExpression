@@ -16,17 +16,34 @@ using bsn.AsyncLambdaExpression.Expressions;
 namespace bsn.AsyncLambdaExpression {
 	internal partial class AsyncStateMachineBuilder: IAsyncStateMachineVariables {
 		private static readonly ConcurrentDictionary<Type, (ConstructorInfo, MethodInfo, MethodInfo, PropertyInfo)> taskCompletionSourceInfos = new();
+		private static readonly ConcurrentDictionary<Type, (ConstructorInfo, ConstructorInfo)> valueTaskInfos = new();
+		private static readonly ConstructorInfo ctor_ValueTask_Task = typeof(ValueTask).GetConstructor(new[] { typeof(Task) });
 		private static readonly ConstructorInfo ctor_InvalidOperationExpression = typeof(InvalidOperationException).GetConstructor(Type.EmptyTypes);
-		private static readonly PropertyInfo prop_Task_CompletedTask = typeof(Task).GetProperty(nameof(Task.CompletedTask));
-		private static readonly MethodInfo meth_Task_FromResultOfType = typeof(Task).GetMethod(nameof(Task.FromResult));
+		private static readonly PropertyInfo prop_Task_CompletedTask = typeof(Task).GetProperty(nameof(Task.CompletedTask), BindingFlags.Static | BindingFlags.Public);
+		private static readonly MethodInfo meth_Task_FromResultOfType = typeof(Task).GetMethod(nameof(Task.FromResult), BindingFlags.Static | BindingFlags.Public);
+		private static readonly MethodInfo meth_Task_FromException = typeof(Task).GetMethods(BindingFlags.Static | BindingFlags.Public).Single(m => m.Name == nameof(Task.FromException) && !m.IsGenericMethodDefinition);
+		private static readonly MethodInfo meth_Task_FromExceptionOfType = typeof(Task).GetMethods(BindingFlags.Static | BindingFlags.Public).Single(m => m.Name == nameof(Task.FromException) && m.IsGenericMethodDefinition);
 
-		private static (ConstructorInfo ctor, MethodInfo methSetResult, MethodInfo methSetException, PropertyInfo propTask) GetTaskCompletionSourceInfo(Type type) {
+		private static (ConstructorInfo ctor, MethodInfo meth_SetResult, MethodInfo meth_SetException, PropertyInfo prop_Task) GetTaskCompletionSourceInfo(Type type) {
+			Debug.Assert(type.GetGenericTypeDefinition() == typeof(TaskCompletionSource<>));
 			return taskCompletionSourceInfos.GetOrAdd(type, static t => (
 					t.GetConstructor(new[] { typeof(TaskCreationOptions) }),
 					t.GetMethod(nameof(TaskCompletionSource<object>.SetResult)),
 					t.GetMethod(nameof(TaskCompletionSource<object>.SetException), new[] { typeof(Exception) }),
 					t.GetProperty(nameof(TaskCompletionSource<object>.Task))
 			));
+		}
+
+		private static (ConstructorInfo ctor_Task, ConstructorInfo ctor_Value) GetValueTaskInfo(Type type) {
+			Debug.Assert(type.GetGenericTypeDefinition() == typeof(ValueTask<>));
+			return valueTaskInfos.GetOrAdd(type,
+					static t => {
+						var valueType = t.GetGenericArguments().Single();
+						return (
+								t.GetConstructor(new[] { typeof(Task<>).MakeGenericType(valueType) }),
+								t.GetConstructor(new[] { valueType })
+						);
+					});
 		}
 
 		private readonly ConcurrentDictionary<Type, ParameterExpression> varAwaiter = new();
@@ -69,13 +86,13 @@ namespace bsn.AsyncLambdaExpression {
 		}
 
 		public Expression GetSetExceptionCall(ParameterExpression varException) {
-			var meth_TaskCompletionSource_SetException = GetTaskCompletionSourceInfo(this.VarTaskCompletionSource.Type).methSetException;
+			var meth_TaskCompletionSource_SetException = GetTaskCompletionSourceInfo(this.VarTaskCompletionSource.Type).meth_SetException;
 			return Expression.Call(this.VarTaskCompletionSource, meth_TaskCompletionSource_SetException, varException);
 		}
 
 		public AsyncStateMachineBuilder(LambdaExpression lambda, Type resultTaskType) {
-			if (!resultTaskType.IsTask()) {
-				throw new ArgumentException("Only Task<> and Task are supported as return types");
+			if (!resultTaskType.IsTask() && !resultTaskType.IsValueTask()) {
+				throw new ArgumentException("Only Task<>, Task, ValueTask<> and ValueTask are supported as return types");
 			}
 			this.Lambda = lambda;
 			this.ResultTaskType = resultTaskType;
@@ -92,21 +109,45 @@ namespace bsn.AsyncLambdaExpression {
 			var varEx = Expression.Variable(typeof(Exception), "ex");
 			var continuationBuilder = new ContinuationBuilder(this);
 			var (finalState, finalExpr) = continuationBuilder.Process(this.Lambda.Body);
+			var voidResult = this.ResultTaskType == typeof(Task) || this.ResultTaskType == typeof(ValueTask);
 			if (finalState.StateId == 0) {
-				// Nothing async, just wrap into a Task
-				// TODO: Be a good citizen: catch exception and pass it to Task.FromException()
-				return (this.ResultTaskType == typeof(Task)
-								? (Expression)Expression.Block(this.Lambda.Body,
-										Expression.Property(null, prop_Task_CompletedTask)
-								)
-								: Expression.Call(meth_Task_FromResultOfType.MakeGenericMethod(this.Lambda.Body.Type), this.Lambda.Body))
+				// Nothing async, just wrap into a Task or ValueTask
+				return (this.ResultTaskType.IsValueTask()
+								? voidResult
+										? Expression.TryCatch( // return ValueTask
+												Expression.Block(
+														this.Lambda.Body,
+														Expression.Default(typeof(ValueTask))),
+												Expression.Catch(varEx,
+														Expression.New(ctor_ValueTask_Task,
+																Expression.Call(meth_Task_FromException, varEx))))
+										: Expression.TryCatch( // return ValueTask<T>
+												Expression.New(GetValueTaskInfo(this.ResultTaskType).ctor_Value,
+														this.Lambda.Body),
+												Expression.Catch(varEx,
+														Expression.New(GetValueTaskInfo(this.ResultTaskType).ctor_Task,
+																Expression.Call(meth_Task_FromExceptionOfType.MakeGenericMethod(this.Lambda.Body.Type),
+																		varEx))))
+								: voidResult
+										? Expression.TryCatch( // return Task
+												Expression.Block(
+														this.Lambda.Body,
+														Expression.Property(null, prop_Task_CompletedTask)),
+												Expression.Catch(varEx,
+														Expression.Call(meth_Task_FromException, varEx)))
+										: Expression.TryCatch( // return Task<T>
+												Expression.Call(meth_Task_FromResultOfType.MakeGenericMethod(this.Lambda.Body.Type),
+														this.Lambda.Body),
+												Expression.Catch(varEx,
+														Expression.Call(meth_Task_FromExceptionOfType.MakeGenericMethod(this.Lambda.Body.Type),
+																varEx))))
 						.Optimize();
 			}
-			if (this.ResultTaskType == typeof(object)) {
+			if (voidResult) {
 				finalState.AddExpression(finalExpr);
 			}
 			finalState.AddExpression(
-					Expression.Call(this.VarTaskCompletionSource, meth_TaskCompletionSource_SetResult, this.ResultTaskType == typeof(object)
+					Expression.Call(this.VarTaskCompletionSource, meth_TaskCompletionSource_SetResult, voidResult
 							? Expression.Default(typeof(object))
 							: finalExpr));
 			finalState.AddExpression(
@@ -136,7 +177,10 @@ namespace bsn.AsyncLambdaExpression {
 									Expression.Catch(varEx,
 											Expression.Call(this.VarTaskCompletionSource, meth_TaskCompletionSource_SetException, varEx))))),
 					Expression.Invoke(this.VarContinuation),
-					Expression.Property(this.VarTaskCompletionSource, prop_TaskCompletionSource_Task));
+					this.ResultTaskType.IsValueTask()
+							? Expression.New(voidResult ? ctor_ValueTask_Task : GetValueTaskInfo(this.ResultTaskType).ctor_Task,
+									Expression.Property(this.VarTaskCompletionSource, prop_TaskCompletionSource_Task))
+							: Expression.Property(this.VarTaskCompletionSource, prop_TaskCompletionSource_Task));
 			if (!debug) {
 				stateMachine = stateMachine.Optimize();
 			}

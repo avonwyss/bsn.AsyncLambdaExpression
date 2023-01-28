@@ -7,6 +7,7 @@ Convert plain LINQ expression trees to awaitable async state machines.
 <!-- badges -->
 
 ---
+
 ## Description
 
 Since .NET 4.0, the LINQ Expressions have become a widely used tool for runtime code generation. The
@@ -27,11 +28,20 @@ as LINQ Expression Tree, which can then be comiled and awaited like normal code.
 
 The class `AsyncExpressionExtensions` contains extension methods for the async/await expression trees.
 
+---
+
 ```cs
-Expression Await(this Expression expression, bool? continueOnCapturedContext = null)
+Expression Await(this Expression expression)
+Expression AwaitConfigured(this Expression expression, bool continueOnCapturedContext)
+Expression AwaitIfAwaitable(this Expression expression)
+Expression AwaitIfAwaitableOptionallyConfigured(this Expression expression, bool continueOnCapturedContext)
+bool TryAwait(this Expression expression, out Expression result)
+bool TryAwaitOptionallyConfigured(this Expression expression, bool continueOnCapturedContext, out Expression result)
 ```
 
 Insert placeholder call with the correct return type for any awaitable object.
+
+---
 
 ```cs
 Expression<T> Async<T>(this LambdaExpression expression)
@@ -40,6 +50,8 @@ LambdaExpression Async(this LambdaExpression expression, Type delegateType)
 
 Generic and non-generic methods for generating the state machine lambda (like `Expression.Lambda()`).
 
+---
+
 **Complete example:**
 
 ```cs
@@ -47,8 +59,8 @@ Generic and non-generic methods for generating the state machine lambda (like `E
 var paraInput = Expression.Parameter(typeof(string), "input");
 var exprTree = Expression.Lambda<Func<Task<string>, string>>(
 		Expression.Block(
-				Expression.Call(typeof(Task), nameof(Task.Delay), null, Expression.Constant(1000)).Await(false),
-				paraInput.Await(false)),
+				Expression.Call(typeof(Task), nameof(Task.Delay), null, Expression.Constant(1000)).AwaitConfigured(false),
+				paraInput.AwaitConfigured(false)),
 		paraInput);
 
 // Create compilable state machine async expression tree (result must be Task<?> or Task)
@@ -72,8 +84,9 @@ var result = await asyncCompiled(Task.FromResult("test")).ConfigureAwait(false);
 
 ### Known issues and limitations
 
- * Only `Task<>` and `Task` types can be used as return type. You cannot use `void`, `ValueTask<>`, `ValueTask`
-   etc., and they would not reduce the footprint since a `TaskCompletionSource<>` is used internally.
+ * Only `Task<>`, `Task`, `ValueTask<>` and `ValueTask` types can be used as return type. You cannot use `void`, 
+   or any other type. *Note:* the types `ValueTask<>` and `ValueTask` are meant to be used for delegate compatibility
+   where needed, their footprint is identical to `Task` variants since a `TaskCompletionSource<>` is used internally.
  * The state machine requires a couple of allocations, and it has a greater memory footprint than native C# state
    machines. This is due to the constraints of LINQ Expression Trees, and also in order to optimize performance.
  * Variables which were scoped to blocks may be captured into the state machine closure if their usage spans multiple
@@ -89,19 +102,21 @@ var result = await asyncCompiled(Task.FromResult("test")).ConfigureAwait(false);
 -->
 
 ---
+
 ## Source
 
 [https://github.com/avonwyss/bsn.AsyncLambdaExpression](https://github.com/avonwyss/bsn.AsyncLambdaExpression)
 
 ---
+
 ## Related links
 
 - [Async lambda to Expression<Func<Task>>](https://stackoverflow.com/questions/31543468/async-lambda-to-expressionfunctask/31543991#31543991)
 - [Can I generate an async method dynamically using System.Linq.Expressions?](https://stackoverflow.com/questions/24240702/can-i-generate-an-async-method-dynamically-using-system-linq-expressions)
 - [Extend expression trees to cover more/all language constructs](https://github.com/dotnet/csharplang/discussions/158) 
 
-
 ---
+
 ## License
 
 - **[MIT license](LICENSE.txt)**
