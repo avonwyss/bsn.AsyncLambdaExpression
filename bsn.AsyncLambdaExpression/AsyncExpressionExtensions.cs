@@ -36,25 +36,58 @@ namespace bsn.AsyncLambdaExpression {
 			throw new NotSupportedException(MessageNotConvertedToAsyncStateMachine);
 		}
 
-		public static Expression Await([NotNull] this Expression expression, bool? continueOnCapturedContext = null) {
+		public static bool TryConfigureAwait(this Expression expression, bool continueOnCapturedContext, out Expression result) {
+			var meth_ConfigureAwait = expression?.Type.GetAwaitableGetConfigureAwaitMethod();
+			if (meth_ConfigureAwait == null) {
+				result = null;
+				return false;
+			}
+			result = Expression.Call(expression, meth_ConfigureAwait, Expression.Constant(continueOnCapturedContext));
+			return true;
+		}
+
+		public static Expression ConfigureAwait([NotNull] this Expression expression, bool continueOnCapturedContext) {
 			if (expression == null) {
 				throw new ArgumentNullException(nameof(expression));
 			}
-			if (continueOnCapturedContext.HasValue) {
-				var meth_ConfigureAwait = expression.Type.GetAwaitableGetConfigureAwaitMethod();
-				if (meth_ConfigureAwait == null) {
-					throw new ArgumentException($"The type {expression.Type.FullName} of the expression does not have a ConfigureAwait(bool) method", nameof(expression));
-				}
-				expression = Expression.Call(expression, meth_ConfigureAwait, Expression.Constant(continueOnCapturedContext.Value));
+			if (TryConfigureAwait(expression, continueOnCapturedContext, out var result)) {
+				return result;
 			}
+			throw new ArgumentException($"The type {expression.Type.FullName} of the expression does not have a ConfigureAwait(bool) method", nameof(expression));
+		}
+
+		public static bool TryAwait(this Expression expression, out Expression result) {
 			var methGetAwaiter = expression.Type.GetAwaitableGetAwaiterMethod();
 			if (methGetAwaiter == null) {
-				throw new ArgumentException($"The type {expression.Type.FullName} of the expression is not awaitable", nameof(expression));
+				result = null;
+				return false;
 			}
 			var methGetResult = methGetAwaiter.ReturnType.GetAwaiterGetResultMethod();
-			return Expression.Call(methGetResult.ReturnType == typeof(void)
+			result = Expression.Call(methGetResult.ReturnType == typeof(void)
 					? meth_AwaitVoid.MakeGenericMethod(expression.Type)
 					: meth_AwaitResult.MakeGenericMethod(expression.Type, methGetResult.ReturnType), expression);
+			return true;
+		}
+
+		public static Expression Await([NotNull] this Expression expression) {
+			if (expression == null) {
+				throw new ArgumentNullException(nameof(expression));
+			}
+			if (TryAwait(expression, out var result)) {
+				return result;
+			}
+			throw new ArgumentException($"The type {expression.Type.FullName} of the expression is not awaitable", nameof(expression));
+		}
+
+		public static Expression Await([NotNull] this Expression expression, bool continueOnCapturedContext) {
+			return Await(ConfigureAwait(expression, continueOnCapturedContext));
+		}
+
+		public static Expression AwaitIfAwaitable(this Expression expression, bool? continueOnCapturedContext = null) {
+			if (!continueOnCapturedContext.HasValue || !TryConfigureAwait(expression, continueOnCapturedContext.Value, out var result)) {
+				result = expression;
+			}
+			return TryAwait(result, out result) ? result : expression;
 		}
 
 		public static Expression<T> Async<T>(this LambdaExpression expression, bool debug = false) {
@@ -75,6 +108,10 @@ namespace bsn.AsyncLambdaExpression {
 		internal static Expression Optimize(this Expression expression) {
 			var optimizer = new Optimizer();
 			return optimizer.Visit(expression);
+		}
+
+		internal static bool ContainsAwait(this Expression expression) {
+			return ContainsAsyncCode(expression, false);
 		}
 
 		internal static bool ContainsAsyncCode(this Expression expression, bool labelAndGotoAreAsync) {

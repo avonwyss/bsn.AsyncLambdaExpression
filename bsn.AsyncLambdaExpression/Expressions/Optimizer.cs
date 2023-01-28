@@ -90,6 +90,15 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 							: node.Update(variables, expressions);
 		}
 
+		protected override Expression VisitBinary(BinaryExpression node) {
+			var result = base.VisitBinary(node);
+			if (result is BinaryExpression { NodeType: ExpressionType.Assign, Left: ParameterExpression } binary && binary.Right == binary.Left) {
+				// Change assignment to itself to just the variable, since this has the same semantics
+				return binary.Right;
+			}
+			return result;
+		}
+
 		public override Expression Visit(Expression node) {
 			var result = base.Visit(node);
 			while (result is { CanReduce: true }) {
