@@ -9,6 +9,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>bsn.AsyncLambdaExpression</RootNamespace>
     <AssemblyName>bsn.AsyncLambdaExpression</AssemblyName>
+    <KeyContainerName>bsn</KeyContainerName>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
