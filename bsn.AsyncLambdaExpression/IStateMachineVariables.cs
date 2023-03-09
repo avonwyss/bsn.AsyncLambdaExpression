@@ -1,8 +1,8 @@
-﻿using System;
+using System;
 using System.Linq.Expressions;
 
 namespace bsn.AsyncLambdaExpression {
-	internal interface IAsyncStateMachineVariables {
+	internal interface IStateMachineVariables {
 		ParameterExpression VarException {
 			get;
 		}
@@ -23,8 +23,12 @@ namespace bsn.AsyncLambdaExpression {
 			get;
 		}
 
+		ParameterExpression VarCurrent {
+			get;
+		}
+
 		ParameterExpression GetVarAwaiter(Type awaiterType);
 
-		Expression GetSetExceptionCall(ParameterExpression varException);
+		Expression HandleException(ParameterExpression varException);
 	}
 }

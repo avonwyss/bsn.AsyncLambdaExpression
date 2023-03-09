@@ -107,6 +107,8 @@
     <Compile Include="AsyncExpressionExtensionTest.cs" />
     <Compile Include="Collections\ImmutableStackTest.cs" />
     <Compile Include="Collections\TypeSetTest.cs" />
+    <Compile Include="ExpressionExtensionTestBase.cs" />
+    <Compile Include="IteratorExpressionExtensionTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

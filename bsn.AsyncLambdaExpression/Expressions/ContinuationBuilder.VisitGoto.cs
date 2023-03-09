@@ -14,7 +14,7 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 								value));
 			}
 			this.currentState.SetContinuation(targetState);
-			this.currentState = new AsyncState(-1, node.Type, ImmutableStack<TryInfo>.Empty);
+			this.currentState = new MachineState(-1, node.Type, ImmutableStack<TryInfo>.Empty, false);
 			this.currentState.SetName("Goto", targetState.StateId, "Virtual");
 			return Expression.Default(node.Type);
 		}

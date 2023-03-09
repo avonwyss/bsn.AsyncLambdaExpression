@@ -113,6 +113,7 @@ namespace bsn.AsyncLambdaExpression {
 		private static readonly ConcurrentDictionary<(Type type, bool interfaces), Type[]> compatibleTypeCache = new();
 		private static readonly ConcurrentDictionary<Type, (MethodInfo meth_GetAwaiter, MethodInfo meth_ConfigureAwait)> awaitableInfos = new();
 		private static readonly ConcurrentDictionary<Type, (PropertyInfo prop_IsCompleted, MethodInfo meth_OnCompleted, MethodInfo meth_GetResult)> awaiterInfos = new();
+		private static readonly ConcurrentDictionary<Type, (ConstructorInfo ctor, FieldInfo fld_Value)> strongBoxInfos = new();
 
 		public static MethodInfo GetDelegateInvokeMethod(this Type that) {
 			return meth_Delegate_Invoke.GetOrAdd(that, t => {
@@ -125,10 +126,12 @@ namespace bsn.AsyncLambdaExpression {
 			});
 		}
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static MethodInfo GetAwaitableGetAwaiterMethod(this Type that) {
 			return GetAwaitableInfos(that).meth_GetAwaiter;
 		}
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static MethodInfo GetAwaitableGetConfigureAwaitMethod(this Type that) {
 			return GetAwaitableInfos(that).meth_ConfigureAwait;
 		}
@@ -142,6 +145,42 @@ namespace bsn.AsyncLambdaExpression {
 						methConfigureAwait != null && methConfigureAwait.ReturnType.IsAwaitable() ? methConfigureAwait : null
 				);
 			});
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static ConstructorInfo GetStrongBoxConstructor(this Type that) {
+			return GetStrongBoxInfo(that).ctor;
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static FieldInfo GetStrongBoxValueField(this Type that) {
+			return GetStrongBoxInfo(that).fld_Value;
+		}
+
+		private static (ConstructorInfo ctor, FieldInfo fld_Value) GetStrongBoxInfo(Type that) {
+			if (!that.IsStrongBox()) {
+				throw new ArgumentException($"The type {that.FullName} is not a StrongBox<>", nameof(that));
+			}
+			return strongBoxInfos.GetOrAdd(that, t => (
+					ctor: t.GetConstructor(new [] {t}),
+					fld_Value: t.GetField(nameof(StrongBox<object>.Value))
+			));
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static bool IsStrongBox(this Type that) {
+			return GetStrongBoxValueType(that) != null;
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static Type GetStrongBoxValueType(this Type that) {
+			while (that != null) {
+				if (that.IsGenericType && that.GetGenericTypeDefinition() == typeof(StrongBox<>)) {
+					return that.GetGenericArguments()[0];
+				}
+				that = that.BaseType;
+			}
+			return null;
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]

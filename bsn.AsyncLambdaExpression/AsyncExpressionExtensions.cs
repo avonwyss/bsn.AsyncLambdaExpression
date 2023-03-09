@@ -1,11 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 
 using bsn.AsyncLambdaExpression.Expressions;
 
@@ -15,8 +11,10 @@ namespace bsn.AsyncLambdaExpression {
 	public static class AsyncExpressionExtensions {
 		private const string MessageNotConvertedToAsyncStateMachine = "The lambda expression was not converted to an async state machine";
 
+		// ReSharper disable InconsistentNaming
 		private static readonly MethodInfo meth_AwaitResult = typeof(AsyncExpressionExtensions).GetMethod(nameof(AwaitResult), BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.DeclaredOnly);
 		private static readonly MethodInfo meth_AwaitVoid = typeof(AsyncExpressionExtensions).GetMethod(nameof(AwaitVoid), BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.DeclaredOnly);
+		// ReSharper restore InconsistentNaming
 
 		public static bool IsAwaitMethod(MethodInfo method) {
 			if (!method.IsGenericMethod) {

@@ -13,7 +13,7 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 			var cases = node
 					.Cases
 					.SelectMany(sc => sc.TestValues.Select<Expression, (Fiber testValue, Expression body)>(tv => {
-						var fiber = this.VisitAsFiber(tv, false);
+						var fiber = this.VisitAsFiber(tv, FiberMode.Continuous);
 						fiber.SetName("Switch", switchValueExitState.StateId, "Test Value");
 						return (fiber, sc.Body);
 					}))
@@ -23,11 +23,11 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 					.Select(c => c.body)
 					.Distinct()
 					.ToDictionary(b => b, b => {
-						var fiber = this.VisitAsFiber(b, hasAsyncTestValues);
+						var fiber = this.VisitAsFiber(b, hasAsyncTestValues ? FiberMode.Standalone : FiberMode.Continuous);
 						fiber.SetName("Switch", switchValueExitState.StateId, "Case Body");
 						return fiber;
 					});
-			var defaultBody = this.VisitAsFiber(node.DefaultBody, hasAsyncTestValues);
+			var defaultBody = this.VisitAsFiber(node.DefaultBody, hasAsyncTestValues ? FiberMode.Standalone : FiberMode.Continuous);
 			defaultBody.SetName("Switch", switchValueExitState.StateId, "Default");
 			if (!hasAsyncTestValues && !defaultBody.IsAsync && !caseBodies.Values.Any(b => b.IsAsync)) {
 				// No async test values or bodies, emit plain switch-case
@@ -53,7 +53,7 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 				return this.currentState.ResultExpression;
 			}
 			// With async test values, emit switch cases spread over multiple states
-			var switchCases = new List<(Expression testValue, AsyncState targetState)>();
+			var switchCases = new List<(Expression testValue, MachineState targetState)>();
 
 			void FlushSwitchCases(Expression defaultCaseBody) {
 				caseState.AddExpression(
@@ -63,7 +63,7 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 										defaultCaseBody,
 										node.Comparison,
 										switchCases
-												.GroupSame(sc => sc.targetState, sc => sc.testValue, ReferenceEqualityComparer<AsyncState>.Default)
+												.GroupSame(sc => sc.targetState, sc => sc.testValue, ReferenceEqualityComparer<MachineState>.Default)
 												.Select(g => Expression.SwitchCase(
 														g.Key.ToExpression(this.vars),
 														g)))

@@ -9,8 +9,8 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 	internal partial class ContinuationBuilder {
 		protected override Expression VisitConditional(ConditionalExpression node) {
 			var test = this.Visit(node.Test);
-			var ifTrue = this.VisitAsFiber(node.IfTrue, false);
-			var ifFalse = this.VisitAsFiber(node.IfFalse, false);
+			var ifTrue = this.VisitAsFiber(node.IfTrue, FiberMode.Continuous);
+			var ifFalse = this.VisitAsFiber(node.IfFalse, FiberMode.Continuous);
 			if (!ifTrue.IsAsync && !ifFalse.IsAsync) {
 				// no await inside conditional branches, proceed normally
 				return node.Update(test, ifTrue.Expression, ifFalse.Expression);

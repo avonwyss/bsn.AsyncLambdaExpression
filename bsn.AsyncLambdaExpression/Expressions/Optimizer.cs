@@ -99,6 +99,26 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 			return result;
 		}
 
+		protected override Expression VisitConditional(ConditionalExpression node) {
+			var result = base.VisitConditional(node);
+			// Simplify conditionals if the test is side-effect-free and true and false does assign the same constant
+			return result is ConditionalExpression {
+					       IfTrue: BinaryExpression {
+							       NodeType: ExpressionType.Assign,
+							       Right: ConstantExpression ifTrueConst
+					       } ifTrue,
+					       IfFalse: BinaryExpression {
+							       NodeType: ExpressionType.Assign,
+							       Right: ConstantExpression ifFalseConst
+					       } ifFalse
+			       } conditional
+			       && ReferenceEquals(ifTrue.Left, ifFalse.Left)
+			       && Equals(ifTrueConst.Value, ifFalseConst.Value)
+			       && conditional.Test.IsSafeCode() // most expensive check last
+					? node.IfTrue
+					: result;
+		}
+
 		public override Expression Visit(Expression node) {
 			var result = base.Visit(node);
 			while (result is { CanReduce: true }) {

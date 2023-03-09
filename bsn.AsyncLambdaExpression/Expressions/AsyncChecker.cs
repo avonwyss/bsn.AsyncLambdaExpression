@@ -1,3 +1,4 @@
+using System;
 using System.Linq.Expressions;
 
 namespace bsn.AsyncLambdaExpression.Expressions {
@@ -23,7 +24,7 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 		}
 
 		protected override Expression VisitMethodCall(MethodCallExpression node) {
-			if (AsyncExpressionExtensions.IsAwaitMethod(node.Method)) {
+			if (AsyncExpressionExtensions.IsAwaitMethod(node.Method) || IteratorExpressionExtensions.IsYieldReturnMethod(node.Method)) {
 				this.HasAsyncCode = true;
 				return node;
 			}

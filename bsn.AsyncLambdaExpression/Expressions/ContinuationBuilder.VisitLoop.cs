@@ -16,7 +16,7 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 			this.currentState.AddExpression(body);
 			this.currentState.SetContinuation(continueState);
 			this.currentState = node.BreakLabel == null
-					? new AsyncState(-1, node.Type, ImmutableStack<TryInfo>.Empty)
+					? new MachineState(-1, node.Type, ImmutableStack<TryInfo>.Empty, false)
 					: this.GetLabelState(node.BreakLabel);
 			return this.currentState.ResultExpression;
 		}

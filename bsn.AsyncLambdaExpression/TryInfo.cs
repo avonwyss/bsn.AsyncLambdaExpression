@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace bsn.AsyncLambdaExpression {
 	internal struct TryInfo {
-		public TryInfo(CatchInfo[] handlers, AsyncState finallyState, AsyncState rethrowState, AsyncState exitState) {
+		public TryInfo(CatchInfo[] handlers, MachineState finallyState, MachineState rethrowState, MachineState exitState) {
 			Debug.Assert(handlers == null || handlers.All(c => c.BodyState.StateId > 0));
 			this.Handlers = handlers ?? Array.Empty<CatchInfo>();
 			Debug.Assert(finallyState == null || finallyState.StateId > 0);
@@ -19,15 +19,15 @@ namespace bsn.AsyncLambdaExpression {
 			get;
 		}
 
-		public AsyncState FinallyState {
+		public MachineState FinallyState {
 			get;
 		}
 
-		public AsyncState RethrowState {
+		public MachineState RethrowState {
 			get;
 		}
 
-		public AsyncState ExitState {
+		public MachineState ExitState {
 			get;
 		}
 	}

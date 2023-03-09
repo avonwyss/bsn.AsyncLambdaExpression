@@ -4,7 +4,7 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 	internal partial class ContinuationBuilder {
 		protected override Expression VisitBinary(BinaryExpression node) {
 			var left = this.Visit(node.Left);
-			var right = this.VisitAsFiber(node.Right, false);
+			var right = this.VisitAsFiber(node.Right, FiberMode.Continuous);
 			right.SetName("Binary", this.currentState.StateId, "Right");
 			if (!right.IsAsync) {
 				return node.Update(left, node.Conversion, right.Expression);

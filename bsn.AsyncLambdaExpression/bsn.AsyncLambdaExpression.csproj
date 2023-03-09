@@ -74,12 +74,13 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AsyncExpressionExtensions.cs" />
-    <Compile Include="AsyncState.cs" />
     <Compile Include="AsyncStateMachineBuilder.cs" />
     <Compile Include="CatchInfo.cs" />
     <Compile Include="Collections\Extensions.cs" />
     <Compile Include="Collections\ImmutableStack.cs" />
     <Compile Include="Collections\TypeAssignableSet.cs" />
+    <Compile Include="Enumerable\AsyncEnumerableSource.cs" />
+    <Compile Include="Enumerable\EnumerableSource.cs" />
     <Compile Include="Expressions\AsyncChecker.cs" />
     <Compile Include="Expressions\ContinuationBuilder.cs" />
     <Compile Include="Expressions\ContinuationBuilder.VisitBinary.cs" />
@@ -97,10 +98,15 @@
     <Compile Include="Expressions\SafeCodeChecker.cs" />
     <Compile Include="Expressions\VariableScopeFinder.cs" />
     <Compile Include="Expressions\VariableScopeSetter.cs" />
-    <Compile Include="IAsyncStateMachineVariables.cs" />
+    <Compile Include="IsExternalInit.cs" />
+    <Compile Include="IStateMachineVariables.cs" />
+    <Compile Include="IteratorExpressionExtensions.cs" />
+    <Compile Include="IteratorStateMachineBuilder.cs" />
+    <Compile Include="MachineState.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ReferenceEqualityComparer.cs" />
     <Compile Include="Reflect.cs" />
+    <Compile Include="StateMachineBuilderBase.cs" />
     <Compile Include="TryInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

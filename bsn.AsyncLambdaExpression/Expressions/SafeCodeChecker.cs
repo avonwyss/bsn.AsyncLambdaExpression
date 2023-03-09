@@ -1,9 +1,11 @@
 using System.Collections.Generic;
 using System.Linq.Expressions;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace bsn.AsyncLambdaExpression.Expressions {
 	internal sealed class SafeCodeChecker: ExpressionVisitor {
-		private static readonly HashSet<ExpressionType> SafeNodes = new HashSet<ExpressionType>() {
+		private static readonly HashSet<ExpressionType> SafeNodes = new() {
 				ExpressionType.Assign,
 				ExpressionType.AddAssign,
 				ExpressionType.Add,
@@ -66,6 +68,16 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 			if (node.Method != null) {
 				this.ContainsUnsafeCode = true;
 				return node;
+			}
+			if (node.Left is MemberExpression {
+					    Expression: ParameterExpression para,
+					    Member: FieldInfo {
+							    Name: nameof(StrongBox<object>.Value)
+					    } field
+			    }
+			    && para.Type.IsStrongBox()
+			    && field.DeclaringType.IsStrongBox()) {
+				return node.Update(node.Left, node.Conversion, this.Visit(node.Right));
 			}
 			return base.VisitBinary(node);
 		}

@@ -2,7 +2,7 @@
 
 # bsn.AsyncLambdaExpression
 
-Convert plain LINQ expression trees to awaitable async state machines.
+Convert plain LINQ expression trees to awaitable async state machines, or iterator state machines.
 
 <!-- badges -->
 
@@ -15,14 +15,17 @@ Since .NET 4.0, the LINQ Expressions have become a widely used tool for runtime 
 the elements needed to build fully-featured methods that are dynamically compiled at runtime.
 
 However, while this works really great to create synchronous code, there is no built-in support for
-[async/await](https://devblogs.microsoft.com/pfxteam/asyncawait-faq/). The reason for this is that async methods
-cannot be represented as a plain expression or IL instructions; they in fact just start a state machine which
-will interrupt execution when objects are awaited, and resume when the awaited object has completed its task.
-You can get a glimpse of the internals as implemented by the C# compiler in the excellent blog post
-[Dissecting the async methods in C#](https://devblogs.microsoft.com/premier-developer/dissecting-the-async-methods-in-c/).
+[async/await](https://devblogs.microsoft.com/pfxteam/asyncawait-faq/) or
+[iterators](https://learn.microsoft.com/en-us/dotnet/csharp/iterators#enumeration-sources-with-iterator-methods).
+The reason for this is that async methods and iterators cannot be represented as a plain expression or IL
+instructions; they in fact just start a state machine which will interrupt execution when objects are awaited
+or yielded, and resume when the awaited object has completed its task or when the iterator moves to the next item.
+You can get a glimpse of the internals as implemented by the C# compiler in the excellent blog posts
+[Dissecting the async methods in C#](https://devblogs.microsoft.com/premier-developer/dissecting-the-async-methods-in-c/)
+and [Iterator block implementation details](https://csharpindepth.com/Articles/IteratorBlockImplementation).
 
-The present library enables the transformation of normal LINQ Expression Trees to async state machines represented
-as LINQ Expression Tree, which can then be comiled and awaited like normal code.
+The present library enables the transformation of normal LINQ Expression Trees to async or iterator state machines
+represented as LINQ Expression Tree, which can then be compiled and used like normal code.
 
 ### API for awaiting expressions and async lambda creation
 
@@ -71,9 +74,59 @@ var asyncCompiled = asyncExprTree.Compile();
 var result = await asyncCompiled(Task.FromResult("test")).ConfigureAwait(false);
 ```
 
+### API for yield return expressions and iterator lambda creation
+
+The class `IteratorExpressionExtensions` contains extension methods for the iterator expression trees.
+
+---
+
+```cs
+Expression YieldReturn(this Expression expression)
+```
+
+Insert placeholder call to yield the expression. Note that the YieldReturn will return a `void` expression.
+
+---
+
+```cs
+Expression<IEnumerable<TResult>> Enumerable<TResult>(this Expression<Action> expression)
+Expression<IEnumerable<TResult>> Enumerable<T, TResult>(this Expression<Action<T>> expression)
+Expression<IEnumerable<TResult>> Enumerable<T1, T2, TResult>(this Expression<Action<T1, T2>> expression)
+/// etc. up to 16 arguments
+```
+
+---
+
+**Complete example:**
+
+```cs
+// Build a normal expression tree with "yield return" calls
+var lblBreak = Expression.Label("break");
+var para = Expression.Parameter(typeof(int), "count");
+var moveNextLambda = Expression.Lambda<Action<int>>(
+		Expression.Block(
+				Expression.Loop(
+						Expression.IfThenElse(
+								Expression.GreaterThan(
+										para,
+										Expression.Constant(0)),
+								Expression.PostDecrementAssign(para).YieldReturn(),
+								Expression.Break(lblBreak)), lblBreak)),
+		para);
+
+// Convert to Func<int, IEnumerable<int>> expression tree
+var getEnumerableLambda = moveNextLambda.Enumerable<int, int>();
+
+// Compile
+var getEnumerable = getEnumerableLambda.Compile();
+
+// Use in normal code
+foreach (var i in getEnumerable(10)) { ... }
+```
+
 ### Expressions converted to state machine states
 
- * Await :)
+ * Await or Yield Return :)
  * Binary expressions with shortcutting (AndAlso, OrElse)
  * Blocks
  * Conditional
@@ -84,15 +137,16 @@ var result = await asyncCompiled(Task.FromResult("test")).ConfigureAwait(false);
 
 ### Known issues and limitations
 
- * Only `Task<>`, `Task`, `ValueTask<>` and `ValueTask` types can be used as return type. You cannot use `void`, 
+ * Async: Only `Task<>`, `Task`, `ValueTask<>` and `ValueTask` types can be used as return type. You cannot use `void`, 
    or any other type. *Note:* the types `ValueTask<>` and `ValueTask` are meant to be used for delegate compatibility
    where needed, their footprint is identical to `Task` variants since a `TaskCompletionSource<>` is used internally.
+ * Iterators: Only `IEnumerable<>` types can currently be used as return type.
  * The state machine requires a couple of allocations, and it has a greater memory footprint than native C# state
    machines. This is due to the constraints of LINQ Expression Trees, and also in order to optimize performance.
  * Variables which were scoped to blocks may be captured into the state machine closure if their usage spans multiple
    states. Due to this, you cannot count on variable scoping (expect all variables to be scoped for the full lambda),
    therefore you should not re-use the same variable in multiple block declarations in order to avoid unexpected behavior.
- * Nested lambda support is not tested; they currently also cannot use await (this may change in a future version).
+ * Nested lambda support is not tested; they currently also cannot use await or yield (this may change in a future version).
 
 <!--
 ---
@@ -120,4 +174,4 @@ var result = await asyncCompiled(Task.FromResult("test")).ConfigureAwait(false);
 ## License
 
 - **[MIT license](LICENSE.txt)**
-- Copyright 2022 © Arsène von Wyss.
+- Copyright 2023 © Arsène von Wyss.

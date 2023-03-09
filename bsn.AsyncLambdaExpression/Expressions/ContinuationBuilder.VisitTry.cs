@@ -17,9 +17,9 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 				this.rethrowState.AddExpression(
 						Expression.Assign(this.vars.VarState,
 								Expression.Constant(-1)));
-				this.rethrowState.AddExpression(this.vars.GetSetExceptionCall(this.vars.VarException));
+				this.rethrowState.AddExpression(this.vars.HandleException(this.vars.VarException));
 				this.rethrowState.AddExpression(
-						Expression.Break(this.vars.LblBreak));
+						Expression.Break(this.vars.LblBreak, Expression.Default(this.vars.LblBreak.Type)));
 			}
 			var tryEntryState = this.currentState;
 			var tryExitState = this.CreateState(node.Type);
@@ -27,7 +27,7 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 			var finallyFiber = default(Fiber);
 			var finallyInfos = this.currentState.TryInfos;
 			if (node.Finally != null) {
-				finallyFiber = this.VisitAsFiber(node.Finally, true, finallyInfos.Push(new TryInfo(null, null, this.rethrowState, tryExitState)));
+				finallyFiber = this.VisitAsFiber(node.Finally, FiberMode.Finally, finallyInfos.Push(new TryInfo(null, null, this.rethrowState, tryExitState)));
 				finallyFiber.SetName("Try", tryExitState.StateId, "Finally");
 				finallyFiber.ExitState.AddExpression(
 						Expression.Assign(this.vars.VarState, this.vars.VarResumeState));
@@ -39,7 +39,7 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 			}
 			var handlers = new List<CatchInfo>();
 			foreach (var handler in node.Handlers) {
-				var handlerFiber = this.VisitAsFiber(handler.Body, true, finallyInfos);
+				var handlerFiber = this.VisitAsFiber(handler.Body, FiberMode.Standalone, finallyInfos);
 				handlerFiber.SetName("Try", tryExitState.StateId, "Handler");
 				handlerFiber.ContinueWith(finallyFiber.EntryState ?? tryExitState);
 				if (handler.Filter.ContainsAsyncCode(false)) {
@@ -48,12 +48,12 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 				handlers.Add(new CatchInfo(handlerFiber.EntryState, handler.Variable, handler.Test, handler.Filter));
 			}
 			if (node.Fault != null) {
-				var faultFiber = this.VisitAsFiber(node.Fault, true, finallyInfos);
+				var faultFiber = this.VisitAsFiber(node.Fault, FiberMode.Standalone, finallyInfos);
 				faultFiber.SetName("Try", tryExitState.StateId, "Fault");
 				faultFiber.ContinueWith(finallyFiber.EntryState ?? tryExitState);
 				handlers.Add(new CatchInfo(faultFiber.EntryState, null, typeof(Exception), null));
 			}
-			var bodyFiber = this.VisitAsFiber(node.Body, true, tryEntryState.TryInfos.Push(new TryInfo(
+			var bodyFiber = this.VisitAsFiber(node.Body, FiberMode.Standalone, tryEntryState.TryInfos.Push(new TryInfo(
 					handlers.ToArray(),
 					finallyFiber.EntryState, this.rethrowState,
 					tryExitState)));

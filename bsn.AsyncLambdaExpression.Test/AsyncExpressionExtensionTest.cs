@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -12,23 +11,8 @@ using Xunit;
 using Xunit.Abstractions;
 
 namespace bsn.AsyncLambdaExpression {
-	public class AsyncExpressionExtensionTest {
-		private static readonly ConstructorInfo ctor_InvalidOperationExpression = typeof(InvalidOperationException).GetConstructor(new[] { typeof(string) });
-
-		public static UnaryExpression Throw<T>(string message = "This branch should not be reached during execution") {
-			return Expression.Throw(
-					Expression.New(ctor_InvalidOperationExpression,
-							Expression.Constant(message)),
-					typeof(T));
-		}
-
-		public ITestOutputHelper Output {
-			get;
-		}
-
-		public AsyncExpressionExtensionTest(ITestOutputHelper output) {
-			this.Output = output;
-		}
+	public class AsyncExpressionExtensionTest: ExpressionExtensionTestBase {
+		public AsyncExpressionExtensionTest(ITestOutputHelper output): base(output) { }
 
 		private Func<TInput, Task<TResult>> CompileAsyncLambda<TInput, TResult>(bool debug, Func<ParameterExpression, Expression> bodyFactory) {
 			var paraInput = Expression.Parameter(typeof(TInput), "input");

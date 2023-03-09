@@ -4,7 +4,7 @@ using System.Linq.Expressions;
 
 namespace bsn.AsyncLambdaExpression {
 	internal struct CatchInfo {
-		public CatchInfo(AsyncState bodyState, ParameterExpression variable, Type test, Expression filter) {
+		public CatchInfo(MachineState bodyState, ParameterExpression variable, Type test, Expression filter) {
 			Debug.Assert(bodyState.StateId > 0 && typeof(Exception).IsAssignableFrom(test) && (variable == null || variable.Type == test) && (filter == null || filter.Type == typeof(bool)));
 			this.BodyState = bodyState;
 			this.Variable = variable;
@@ -12,7 +12,7 @@ namespace bsn.AsyncLambdaExpression {
 			this.Filter = filter;
 		}
 
-		public AsyncState BodyState {
+		public MachineState BodyState {
 			get;
 		}
 

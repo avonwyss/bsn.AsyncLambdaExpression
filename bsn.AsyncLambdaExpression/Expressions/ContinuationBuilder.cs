@@ -9,18 +9,24 @@ using bsn.AsyncLambdaExpression.Collections;
 
 namespace bsn.AsyncLambdaExpression.Expressions {
 	internal partial class ContinuationBuilder: ExpressionVisitor {
+		protected enum FiberMode {
+			Continuous,
+			Standalone,
+			Finally
+		}
+
 		protected struct Fiber {
-			public Fiber(AsyncState entryState, AsyncState exitState, Expression expression) {
+			public Fiber(MachineState entryState, MachineState exitState, Expression expression) {
 				this.EntryState = entryState;
 				this.ExitState = exitState;
 				this.Expression = expression;
 			}
 
-			public AsyncState EntryState {
+			public MachineState EntryState {
 				get;
 			}
 
-			public AsyncState ExitState {
+			public MachineState ExitState {
 				get;
 			}
 
@@ -35,36 +41,36 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 				this.EntryState.SetName(kind, groupId, $"Fiber {detail}");
 			}
 
-			public void ContinueWith(AsyncState state) {
+			public void ContinueWith(MachineState state) {
 				this.AssignResult(state);
 				this.ExitState.SetContinuation(state);
 			}
 
-			public void AssignResult(AsyncState state) {
+			public void AssignResult(MachineState state) {
 				this.ExitState.AddExpression(state?.ResultExpression is ParameterExpression parameter
 						? Expression.Assign(parameter, this.Expression)
 						: this.Expression);
 			}
 		}
 
-		private readonly IAsyncStateMachineVariables vars;
-		private readonly List<AsyncState> states = new();
-		private readonly Dictionary<LabelTarget, AsyncState> labelStates = new(ReferenceEqualityComparer<LabelTarget>.Default);
-		private AsyncState currentState;
-		private AsyncState rethrowState;
+		private readonly IStateMachineVariables vars;
+		private readonly List<MachineState> states = new();
+		private readonly Dictionary<LabelTarget, MachineState> labelStates = new(ReferenceEqualityComparer<LabelTarget>.Default);
+		private MachineState currentState;
+		private MachineState rethrowState;
 
-		public ContinuationBuilder(IAsyncStateMachineVariables vars) {
+		public ContinuationBuilder(IStateMachineVariables vars) {
 			this.vars = vars;
 		}
 
-		public IReadOnlyCollection<AsyncState> States => this.states;
+		public IReadOnlyCollection<MachineState> States => this.states;
 
-		protected Fiber VisitAsFiber(Expression expression, bool standalone, ImmutableStack<TryInfo> tryInfos = null) {
+		protected Fiber VisitAsFiber(Expression expression, FiberMode mode, ImmutableStack<TryInfo> tryInfos = null) {
 			var originState = this.currentState;
 			try {
-				var entryState = this.currentState = standalone
-						? this.CreateState(this.currentState.ResultExpression.Type, tryInfos ?? originState.TryInfos)
-						: new AsyncState(-1, this.currentState.ResultExpression.Type, tryInfos ?? originState.TryInfos);
+				var entryState = this.currentState = mode == FiberMode.Continuous
+						? new MachineState(-1, this.currentState.ResultExpression.Type, tryInfos ?? originState.TryInfos, false)
+						: this.CreateState(this.currentState.ResultExpression.Type, tryInfos ?? originState.TryInfos, mode == FiberMode.Finally);
 				var exprVisited = this.Visit(expression);
 				var exitState = this.currentState;
 				var fiber = new Fiber(entryState, exitState, exprVisited);
@@ -75,13 +81,13 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 			}
 		}
 
-		protected AsyncState CreateState(Type result, ImmutableStack<TryInfo> tryInfos = null) {
-			var state = new AsyncState(this.states.Count, result, tryInfos ?? this.currentState.TryInfos);
+		protected MachineState CreateState(Type result, ImmutableStack<TryInfo> tryInfos = null, bool finallyState = false) {
+			var state = new MachineState(this.states.Count, result, tryInfos ?? this.currentState.TryInfos, finallyState);
 			this.states.Add(state);
 			return state;
 		}
 
-		protected AsyncState GetLabelState(LabelTarget target) {
+		protected MachineState GetLabelState(LabelTarget target) {
 			if (!this.labelStates.TryGetValue(target, out var state)) {
 				state = this.CreateState(target.Type);
 				state.SetName("Label Target", state.StateId, target.Name);
@@ -90,7 +96,7 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 			return state;
 		}
 
-		public (AsyncState state, Expression expr) Process(Expression node) {
+		public (MachineState state, Expression expr) Process(Expression node) {
 			this.states.Clear();
 			this.labelStates.Clear();
 			this.rethrowState = null;
