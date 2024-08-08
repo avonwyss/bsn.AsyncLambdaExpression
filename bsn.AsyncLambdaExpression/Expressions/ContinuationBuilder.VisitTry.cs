@@ -8,7 +8,7 @@ using bsn.AsyncLambdaExpression.Collections;
 namespace bsn.AsyncLambdaExpression.Expressions {
 	internal partial class ContinuationBuilder {
 		protected override Expression VisitTry(TryExpression node) {
-			if (!node.ContainsAsyncCode(true)) {
+			if (!node.RequiresStateMachine(true)) {
 				return node;
 			}
 			if (this.rethrowState == null) {
@@ -42,7 +42,7 @@ namespace bsn.AsyncLambdaExpression.Expressions {
 				var handlerFiber = this.VisitAsFiber(handler.Body, FiberMode.Standalone, finallyInfos);
 				handlerFiber.SetName("Try", tryExitState.StateId, "Handler");
 				handlerFiber.ContinueWith(finallyFiber.EntryState ?? tryExitState);
-				if (handler.Filter.ContainsAsyncCode(false)) {
+				if (handler.Filter.RequiresStateMachine(false)) {
 					throw new InvalidOperationException("Exception filters cannot contain await");
 				}
 				handlers.Add(new CatchInfo(handlerFiber.EntryState, handler.Variable, handler.Test, handler.Filter));

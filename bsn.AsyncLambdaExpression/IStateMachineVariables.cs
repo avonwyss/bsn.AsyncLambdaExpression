@@ -1,8 +1,13 @@
 using System;
 using System.Linq.Expressions;
+using System.Runtime.CompilerServices;
 
 namespace bsn.AsyncLambdaExpression {
 	internal interface IStateMachineVariables {
+		DebugInfoGenerator DebugInfoGenerator {
+			get;
+		}
+		
 		ParameterExpression VarException {
 			get;
 		}

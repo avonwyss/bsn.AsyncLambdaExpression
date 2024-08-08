@@ -5,6 +5,8 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
 
+using bsn.AsyncLambdaExpression.Expressions;
+
 using ExpressionTreeToString;
 
 using Xunit;
@@ -26,7 +28,8 @@ namespace bsn.AsyncLambdaExpression {
 		[Fact]
 		public void EnumerateAssertLazyFirst() {
 			var getEnumerable = this.GetEnumerable<int>(false,
-					Throw<int>().YieldReturn());
+					IteratorExpression.YieldReturn(
+							Throw<int>()));
 			using (var enumerator = getEnumerable().GetEnumerator()) {
 				Assert.Throws<InvalidOperationException>(() => enumerator.MoveNext());
 			}
@@ -39,7 +42,8 @@ namespace bsn.AsyncLambdaExpression {
 			var flag = new StrongBox<bool>(false);
 			var getEnumerable = this.GetEnumerable<int>(debug,
 					Expression.TryCatch(
-							Throw<int>().YieldReturn(),
+							IteratorExpression.YieldReturn(
+									Throw<int>()),
 							Expression.Catch(typeof(Exception),
 									Expression.Block(typeof(void),
 											Expression.Assign(
@@ -61,7 +65,8 @@ namespace bsn.AsyncLambdaExpression {
 			var flag = new StrongBox<bool>(false);
 			var getEnumerable = this.GetEnumerable<int>(debug,
 					Expression.TryFinally(
-							Throw<int>().YieldReturn(),
+							IteratorExpression.YieldReturn(
+									Throw<int>()),
 							Expression.Assign(
 									Expression.Field(
 											Expression.Constant(flag),
@@ -81,13 +86,15 @@ namespace bsn.AsyncLambdaExpression {
 			var flag = new StrongBox<bool>(false);
 			var getEnumerable = this.GetEnumerable<int>(debug,
 					Expression.TryFinally(
-							Expression.Constant(1).YieldReturn(),
+							IteratorExpression.YieldReturn(
+									Expression.Constant(1)),
 							Expression.Assign(
 									Expression.Field(
 											Expression.Constant(flag),
 											flag.GetType().GetStrongBoxValueField()),
 									Expression.Constant(true))),
-					Expression.Constant(2).YieldReturn());
+					IteratorExpression.YieldReturn(
+							Expression.Constant(2)));
 			using (var enumerator = getEnumerable().GetEnumerator()) {
 				Assert.False(flag.Value);
 				Assert.True(enumerator.MoveNext());
@@ -98,7 +105,11 @@ namespace bsn.AsyncLambdaExpression {
 
 		[Fact]
 		public void EnumerateMultiple() {
-			var getEnumerable = this.GetEnumerable<int>(false, System.Linq.Enumerable.Range(1, 4).Select(i => Expression.Constant(i).YieldReturn()).Append(Expression.Empty()));
+			var getEnumerable = this.GetEnumerable<int>(false, System.Linq.Enumerable.Range(1, 4)
+					.Select<int, Expression>(i =>
+							IteratorExpression.YieldReturn(
+									Expression.Constant(i)))
+					.Append(Expression.Empty()));
 			using (var enumerator1 = getEnumerable().GetEnumerator()) {
 				Assert.True(enumerator1.MoveNext());
 				Assert.Equal(1, enumerator1.Current);
@@ -127,7 +138,11 @@ namespace bsn.AsyncLambdaExpression {
 		[InlineData(new[] { 1, 2, 3, 4 })]
 		[Theory]
 		public void EnumerateInt(int[] items) {
-			var getEnumerable = this.GetEnumerable<int>(false, items.Select(i => Expression.Constant(i).YieldReturn()).Append(Expression.Empty()));
+			var getEnumerable = this.GetEnumerable<int>(false, items
+					.Select<int, Expression>(i =>
+							IteratorExpression.YieldReturn(
+									Expression.Constant(i)))
+					.Append(Expression.Empty()));
 			using (var enumerator = getEnumerable().GetEnumerator()) {
 				foreach (var item in items) {
 					Assert.True(enumerator.MoveNext());
@@ -140,34 +155,36 @@ namespace bsn.AsyncLambdaExpression {
 		[Fact]
 		public void EnumerateLoop() {
 			var lblBreak = Expression.Label("break");
-			var getEnumerable = this.GetEnumerable<int, int>(paraCount =>
+			var getEnumerable = this.GetEnumerable<int, int>(false, paraCount =>
 					Expression.Loop(
 									Expression.IfThenElse(
 											Expression.GreaterThan(
 													paraCount,
 													Expression.Constant(0)),
-											Expression.PostDecrementAssign(paraCount).YieldReturn(),
+											IteratorExpression.YieldReturn(
+													Expression.PostDecrementAssign(paraCount)),
 											Expression.Break(lblBreak)), lblBreak)
 							.Yield());
 			Assert.Equal(System.Linq.Enumerable.Range(1, 10).Reverse(), getEnumerable(10));
 		}
 
+		[Fact]
 		public void EnumerateLoop2() {
-var lblBreak = Expression.Label("break");
-var para = Expression.Parameter(typeof(int), "t");
-var moveNextLambda = Expression.Lambda<Action<int>>(
-		Expression.Block(
-				Expression.Loop(
-						Expression.IfThenElse(
-								Expression.GreaterThan(
-										para,
-										Expression.Constant(0)),
-								Expression.PostDecrementAssign(para).YieldReturn(),
-								Expression.Break(lblBreak)), lblBreak)),
-		para);
-var getEnumerableLambda = moveNextLambda.Enumerable<int, int>();
-var getEnumerable = getEnumerableLambda.Compile();
-Assert.Equal(System.Linq.Enumerable.Range(1, 10).Reverse(), getEnumerable(10));
+			var lblBreak = Expression.Label("break");
+			var para = Expression.Parameter(typeof(int), "t");
+			var getEnumerableLambda = IteratorExpression.IteratorLambda<Func<int, IEnumerable<int>>>(
+					Expression.Block(
+							Expression.Loop(
+									Expression.IfThenElse(
+											Expression.GreaterThan(
+													para,
+													Expression.Constant(0)),
+											IteratorExpression.YieldReturn(
+													Expression.PostDecrementAssign(para)),
+											Expression.Break(lblBreak)), lblBreak)),
+					para);
+			var getEnumerable = getEnumerableLambda.Compile();
+			Assert.Equal(System.Linq.Enumerable.Range(1, 10).Reverse(), getEnumerable(10));
 		}
 
 		private Func<IEnumerable<TResult>> GetEnumerable<TResult>(bool debug, params Expression[] expressions) {
@@ -175,12 +192,12 @@ Assert.Equal(System.Linq.Enumerable.Range(1, 10).Reverse(), getEnumerable(10));
 		}
 
 		private Func<IEnumerable<TResult>> GetEnumerable<TResult>(bool debug, IEnumerable<Expression> expressions) {
-			var moveNextLambda = Expression.Lambda<Action>(
+			var iterableLambda = IteratorExpression.IteratorLambda<Func<IEnumerable<TResult>>>(
 					Expression.Block(
 							expressions));
 			this.Output.WriteLine("==> Original Lambda");
-			this.Output.WriteLine(moveNextLambda.ToString(BuiltinRenderer.DebugView));
-			var getEnumerableLambda = moveNextLambda.Enumerable<TResult>(debug);
+			this.Output.WriteLine(StubStateMachineExpressions.Process(iterableLambda).ToString(BuiltinRenderer.DebugView));
+			var getEnumerableLambda = iterableLambda.BuildLambdaExpression(debug ? DebugInfoGenerator.CreatePdbGenerator() : null);
 			this.Output.WriteLine("");
 			this.Output.WriteLine("==> Iterator Lambda");
 			this.Output.WriteLine(getEnumerableLambda.ToString(BuiltinRenderer.DebugView));
@@ -188,15 +205,15 @@ Assert.Equal(System.Linq.Enumerable.Range(1, 10).Reverse(), getEnumerable(10));
 			return getEnumerable;
 		}
 
-		private Func<T, IEnumerable<TResult>> GetEnumerable<T, TResult>(Func<ParameterExpression, IEnumerable<Expression>> expressions) {
+		private Func<T, IEnumerable<TResult>> GetEnumerable<T, TResult>(bool debug, Func<ParameterExpression, IEnumerable<Expression>> expressions) {
 			var para = Expression.Parameter(typeof(T), "t");
-			var moveNextLambda = Expression.Lambda<Action<T>>(
+			var iterableLambda = IteratorExpression.IteratorLambda<Func<T, IEnumerable<TResult>>>(
 					Expression.Block(
 							expressions(para)),
 					para);
 			this.Output.WriteLine("==> Original Lambda");
-			this.Output.WriteLine(moveNextLambda.ToString(BuiltinRenderer.DebugView));
-			var getEnumerableLambda = moveNextLambda.Enumerable<T, TResult>();
+			this.Output.WriteLine(StubStateMachineExpressions.Process(iterableLambda).ToString(BuiltinRenderer.DebugView));
+			var getEnumerableLambda = iterableLambda.BuildLambdaExpression(debug ? DebugInfoGenerator.CreatePdbGenerator() : null);
 			this.Output.WriteLine("");
 			this.Output.WriteLine("==> Iterator Lambda");
 			this.Output.WriteLine(getEnumerableLambda.ToString(BuiltinRenderer.DebugView));

@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -17,14 +15,14 @@ namespace bsn.AsyncLambdaExpression {
 		// ReSharper restore InconsistentNaming
 
 		internal static (ConstructorInfo ctor, MethodInfo meth_GetEnumerator) GetEnumerableSourceInfo(Type type) {
-			Debug.Assert(type.GetGenericTypeDefinition() == typeof(EnumerableSource<>));
+			System.Diagnostics.Debug.Assert(type.GetGenericTypeDefinition() == typeof(EnumerableSource<>));
 			return enumerableSourceInfos.GetOrAdd(type, t => (
 					t.GetConstructors().Single(c => c.GetParameters().Length == 1 && typeof(Delegate).IsAssignableFrom(c.GetParameters()[0].ParameterType)),
 					t.GetMethod(nameof(EnumerableSource<object>.GetEnumerator), BindingFlags.Instance | BindingFlags.Public, null, Type.EmptyTypes, null)
 			));
 		}
 
-		public IteratorStateMachineBuilder(LambdaExpression lambda, Type returnType): base(lambda, returnType, typeof(bool)) {
+		public IteratorStateMachineBuilder(StateMachineLambdaExpression lambda, Type returnType, DebugInfoGenerator debugInfoGenerator): base(lambda, typeof(bool), debugInfoGenerator) {
 			this.ElementType = returnType.GetEnumerableItemType();
 			this.VarCurrent = Expression.Parameter(typeof(StrongBox<>).MakeGenericType(this.ElementType), "current");
 		}
@@ -33,7 +31,7 @@ namespace bsn.AsyncLambdaExpression {
 			get;
 		}
 
-		public override Expression CreateStateMachineBody(bool debug) {
+		public override Expression CreateStateMachineBody() {
 			var strongBoxType = typeof(StrongBox<>).MakeGenericType(this.ElementType);
 			var varEx = Expression.Variable(typeof(Exception), "ex");
 			var continuationBuilder = new ContinuationBuilder(this);
@@ -51,7 +49,7 @@ namespace bsn.AsyncLambdaExpression {
 											null,
 											continuationBuilder.States.Select(state =>
 													Expression.SwitchCase(
-															this.StateBodyExpressionDebug(state, paraDispose, debug),
+															this.StateBodyExpressionDebug(state, paraDispose),
 															Expression.Constant(state.StateId)))), this.LblBreak),
 							Expression.Catch(varEx,
 									Expression.Block(
@@ -68,11 +66,11 @@ namespace bsn.AsyncLambdaExpression {
 									Expression.Assign(this.VarResumeState, Expression.Constant(-1)),
 									moveNextLambda)));
 			Expression stateMachine = Expression.Convert(
-					this.ResultType.IsEnumerableInterface()
+					this.Lambda.ReturnType.IsEnumerableInterface()
 							? getEnumeratorExpr
 							: Expression.Call(getEnumeratorExpr, meth_getEnumerator),
-					this.ResultType);
-			if (!debug) {
+					this.Lambda.ReturnType);
+			if (this.DebugInfoGenerator == null) {
 				stateMachine = stateMachine.Optimize();
 			}
 			return stateMachine.RescopeVariables(this.Lambda.Parameters.Concat(variables).Append(this.VarCurrent).Append(paraDispose));

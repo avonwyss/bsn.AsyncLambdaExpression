@@ -4,7 +4,7 @@ using System.Linq.Expressions;
 namespace bsn.AsyncLambdaExpression.Expressions {
 	internal partial class ContinuationBuilder {
 		protected override Expression VisitBlock(BlockExpression node) {
-			if (!node.ContainsAsyncCode(true)) {
+			if (!node.RequiresStateMachine(true)) {
 				return node;
 			}
 			using var enumerator = node.Expressions.GetEnumerator();

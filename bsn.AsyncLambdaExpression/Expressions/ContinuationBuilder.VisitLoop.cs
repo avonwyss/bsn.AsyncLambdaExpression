@@ -6,7 +6,7 @@ using bsn.AsyncLambdaExpression.Collections;
 namespace bsn.AsyncLambdaExpression.Expressions {
 	internal partial class ContinuationBuilder {
 		protected override Expression VisitLoop(LoopExpression node) {
-			if (!node.ContainsAsyncCode(true)) {
+			if (!node.RequiresStateMachine(true)) {
 				return node;
 			}
 			var continueState = this.GetLabelState(node.ContinueLabel ?? Expression.Label());

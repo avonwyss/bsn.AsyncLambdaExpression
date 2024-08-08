@@ -27,47 +27,55 @@ and [Iterator block implementation details](https://csharpindepth.com/Articles/I
 The present library enables the transformation of normal LINQ Expression Trees to async or iterator state machines
 represented as LINQ Expression Tree, which can then be compiled and used like normal code.
 
+**Breaking change note:** The API for V2 has changed from extension methods to static methods, so that it is better aligned with the LINQ
+`Expression` API.
+
 ### API for awaiting expressions and async lambda creation
 
-The class `AsyncExpressionExtensions` contains extension methods for the async/await expression trees.
+The static class `AsyncExpression` contains methods for creating async/await-specific expression tree nodes.
+The `AsyncLambdaExpression<>` will generate the state machine code when being reduced or when `BuildLambdaExpression()` is called.
+
+---
+
+#### Async Lambda:
+```cs
+AsyncLambdaExpression<TDelegate> AsyncLambda<TDelegate>(Expression body, string name, IEnumerable<ParameterExpression> parameters)
+```
+
+#### Awaiting:
+```cs
+AwaitExpression Await(Expression expression)
+AwaitExpression AwaitConfigured(Expression expression, bool continueOnCapturedContext)
+AwaitExpression AwaitConfiguredOptional(Expression expression, bool continueOnCapturedContext)
+AwaitExpression AwaitIfAwaitable(Expression expression)
+AwaitExpression AwaitIfAwaitableConfigured(Expression expression, bool continueOnCapturedContext)
+AwaitExpression AwaitIfAwaitableConfiguredOptional(Expression expression, bool continueOnCapturedContext)
+```
 
 ---
 
 ```cs
-Expression Await(this Expression expression)
-Expression AwaitConfigured(this Expression expression, bool continueOnCapturedContext)
-Expression AwaitIfAwaitable(this Expression expression)
-Expression AwaitIfAwaitableOptionallyConfigured(this Expression expression, bool continueOnCapturedContext)
-bool TryAwait(this Expression expression, out Expression result)
-bool TryAwaitOptionallyConfigured(this Expression expression, bool continueOnCapturedContext, out Expression result)
+Expression<T> Async<T>(LambdaExpression expression)
+LambdaExpression Async(LambdaExpression expression, Type delegateType)
 ```
-
-Insert placeholder call with the correct return type for any awaitable object.
-
----
-
-```cs
-Expression<T> Async<T>(this LambdaExpression expression)
-LambdaExpression Async(this LambdaExpression expression, Type delegateType)
-```
-
-Generic and non-generic methods for generating the state machine lambda (like `Expression.Lambda()`).
 
 ---
 
 **Complete example:**
 
 ```cs
-// Build a normal expression tree with "await" calls
+// Build an expression tree for an async lambda with "await" calls
 var paraInput = Expression.Parameter(typeof(string), "input");
-var exprTree = Expression.Lambda<Func<Task<string>, string>>(
+var exprTree = AsyncExpression.AsyncLambda<Func<Task<string>, ValueTask<string>>>(
 		Expression.Block(
-				Expression.Call(typeof(Task), nameof(Task.Delay), null, Expression.Constant(1000)).AwaitConfigured(false),
-				paraInput.AwaitConfigured(false)),
+				AsyncExpression.AwaitConfigured(
+						Expression.Call(typeof(Task), nameof(Task.Delay), null, Expression.Constant(1000)), false),
+				AsyncExpression.AwaitConfigured(
+						paraInput, false)),
 		paraInput);
 
-// Create compilable state machine async expression tree (result must be Task<?> or Task)
-var asyncExprTree = exprTree.Async<Func<Task<string>, Task<string>>>();
+// Create compilable state machine expression tree
+var asyncExprTree = exprTree.BuildLambdaExpression(null);
 var asyncCompiled = asyncExprTree.Compile();
 
 // Invoke delegate as usual
@@ -76,24 +84,20 @@ var result = await asyncCompiled(Task.FromResult("test")).ConfigureAwait(false);
 
 ### API for yield return expressions and iterator lambda creation
 
-The class `IteratorExpressionExtensions` contains extension methods for the iterator expression trees.
+The class `IteratorExpression` contains static methods for the iterator expression trees.
 
 ---
 
+#### Iterator Lambda:
 ```cs
-Expression YieldReturn(this Expression expression)
+IteratorLambdaExpression<TDelegate> IteratorLambda<TDelegate>(Expression body, string name, IEnumerable<ParameterExpression> parameters)
 ```
 
-Insert placeholder call to yield the expression. Note that the YieldReturn will return a `void` expression.
-
----
-
+#### Yielding:
 ```cs
-Expression<IEnumerable<TResult>> Enumerable<TResult>(this Expression<Action> expression)
-Expression<IEnumerable<TResult>> Enumerable<T, TResult>(this Expression<Action<T>> expression)
-Expression<IEnumerable<TResult>> Enumerable<T1, T2, TResult>(this Expression<Action<T1, T2>> expression)
-/// etc. up to 16 arguments
+YieldReturnExpression YieldReturn(Expression expression)
 ```
+Insert placeholder call to yield the expression. Note that the `YieldReturn` will return a `void` expression.
 
 ---
 
@@ -103,7 +107,7 @@ Expression<IEnumerable<TResult>> Enumerable<T1, T2, TResult>(this Expression<Act
 // Build a normal expression tree with "yield return" calls
 var lblBreak = Expression.Label("break");
 var para = Expression.Parameter(typeof(int), "count");
-var moveNextLambda = Expression.Lambda<Action<int>>(
+var iteratorLambda = IteratorExpression.IteratorLambda<Func<int, IEnumerable<int>>>(
 		Expression.Block(
 				Expression.Loop(
 						Expression.IfThenElse(
@@ -115,7 +119,7 @@ var moveNextLambda = Expression.Lambda<Action<int>>(
 		para);
 
 // Convert to Func<int, IEnumerable<int>> expression tree
-var getEnumerableLambda = moveNextLambda.Enumerable<int, int>();
+var getEnumerableLambda = iteratorLambda.BuildLambdaExpression(null);
 
 // Compile
 var getEnumerable = getEnumerableLambda.Compile();
@@ -137,22 +141,21 @@ foreach (var i in getEnumerable(10)) { ... }
 
 ### Known issues and limitations
 
- * Async: Only `Task<>`, `Task`, `ValueTask<>` and `ValueTask` types can be used as return type. You cannot use `void`, 
-   or any other type. *Note:* the types `ValueTask<>` and `ValueTask` are meant to be used for delegate compatibility
-   where needed, their footprint is identical to `Task` variants since a `TaskCompletionSource<>` is used internally.
- * Iterators: Only `IEnumerable<>` types can currently be used as return type.
- * The state machine requires a couple of allocations, and it has a greater memory footprint than native C# state
-   machines. This is due to the constraints of LINQ Expression Trees, and also in order to optimize performance.
+ * **Async:** Only `Task<>`, `Task`, `ValueTask<>` and `ValueTask` types can be used as return type. You cannot use `void`, 
+   or any other type. 
+ * **Iterators:** Only `IEnumerable<>` types can currently be used as return type. (`IAsyncEnumerable<>` support is planned 
+   for a later version)
+ * The state machine requires a few allocations, and it does have a greater memory footprint than native C# state
+   machines. This is due to the constraints imposed by LINQ Expression Trees, and also in order to optimize performance.
  * Variables which were scoped to blocks may be captured into the state machine closure if their usage spans multiple
    states. Due to this, you cannot count on variable scoping (expect all variables to be scoped for the full lambda),
    therefore you should not re-use the same variable in multiple block declarations in order to avoid unexpected behavior.
- * Nested lambda support is not tested; they currently also cannot use await or yield (this may change in a future version).
 
 <!--
 ---
 ## FAQ
 - **Q**
-    - A
+	- A
 -->
 
 ---
@@ -174,4 +177,4 @@ foreach (var i in getEnumerable(10)) { ... }
 ## License
 
 - **[MIT license](LICENSE.txt)**
-- Copyright 2023 © Arsène von Wyss.
+- Copyright 2024 © Arsène von Wyss.

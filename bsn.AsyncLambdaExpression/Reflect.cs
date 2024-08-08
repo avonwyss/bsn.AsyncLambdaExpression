@@ -319,8 +319,18 @@ namespace bsn.AsyncLambdaExpression {
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static bool IsGenericGroupingInterface(this Type that) {
+			return that.IsInterface && that.IsGenericType && that.GetGenericTypeDefinition() == typeof(IGrouping<,>);
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static bool IsAsyncEnumerableInterface(this Type that) {
 			return that.IsInterface && that.IsGenericType && that.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>);
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static bool IsAsyncGroupingInterface(this Type that) {
+			return that.IsInterface && that.IsGenericType && that.GetGenericTypeDefinition() == typeof(IAsyncGrouping<,>);
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]

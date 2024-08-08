@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 
 using JetBrains.Annotations;
@@ -14,6 +15,11 @@ namespace bsn.AsyncLambdaExpression.Collections {
 			public TKey Key {
 				get;
 			}
+		}
+
+		[Pure]
+		public static ReadOnlyCollection<T> AsReadOnlyCollection<T>(this IEnumerable<T> that) {
+			return that as ReadOnlyCollection<T> ?? (that is T[] array ? Array.AsReadOnly(array) : that.ToList().AsReadOnly());
 		}
 
 		[Pure]

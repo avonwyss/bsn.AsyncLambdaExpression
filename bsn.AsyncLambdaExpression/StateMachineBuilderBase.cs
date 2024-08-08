@@ -1,64 +1,37 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
 
 using bsn.AsyncLambdaExpression.Collections;
 
 namespace bsn.AsyncLambdaExpression {
 	internal abstract class StateMachineBuilderBase: IStateMachineVariables {
 		// ReSharper disable InconsistentNaming
-		private static readonly ConcurrentDictionary<Type, (ConstructorInfo, MethodInfo, MethodInfo, PropertyInfo)> taskCompletionSourceInfos = new();
-		private static readonly ConcurrentDictionary<Type, (ConstructorInfo, ConstructorInfo)> valueTaskInfos = new();
-		protected static readonly ConstructorInfo ctor_ValueTask_Task = typeof(ValueTask).GetConstructor(new[] { typeof(Task) });
 		protected static readonly ConstructorInfo ctor_InvalidOperationExpression = typeof(InvalidOperationException).GetConstructor(Type.EmptyTypes);
-		protected static readonly PropertyInfo prop_Task_CompletedTask = typeof(Task).GetProperty(nameof(Task.CompletedTask), BindingFlags.Static | BindingFlags.Public);
-		protected static readonly MethodInfo meth_Task_FromResultOfType = typeof(Task).GetMethod(nameof(Task.FromResult), BindingFlags.Static | BindingFlags.Public);
-		protected static readonly MethodInfo meth_Task_FromException = typeof(Task).GetMethods(BindingFlags.Static | BindingFlags.Public).Single(m => m.Name == nameof(Task.FromException) && !m.IsGenericMethodDefinition);
-		protected static readonly MethodInfo meth_Task_FromExceptionOfType = typeof(Task).GetMethods(BindingFlags.Static | BindingFlags.Public).Single(m => m.Name == nameof(Task.FromException) && m.IsGenericMethodDefinition);
 		// ReSharper restore InconsistentNaming
-
-		protected static (ConstructorInfo ctor, MethodInfo meth_SetResult, MethodInfo meth_SetException, PropertyInfo prop_Task) GetTaskCompletionSourceInfo(Type type) {
-			Debug.Assert(type.GetGenericTypeDefinition() == typeof(TaskCompletionSource<>));
-			return taskCompletionSourceInfos.GetOrAdd(type, static t => (
-					t.GetConstructor(new[] { typeof(TaskCreationOptions) }),
-					t.GetMethod(nameof(TaskCompletionSource<object>.SetResult)),
-					t.GetMethod(nameof(TaskCompletionSource<object>.SetException), new[] { typeof(Exception) }),
-					t.GetProperty(nameof(TaskCompletionSource<object>.Task))
-			));
-		}
-
-		protected static (ConstructorInfo ctor_Task, ConstructorInfo ctor_Value) GetValueTaskInfo(Type type) {
-			Debug.Assert(type.GetGenericTypeDefinition() == typeof(ValueTask<>));
-			return valueTaskInfos.GetOrAdd(type,
-					static t => {
-						var valueType = t.GetGenericArguments().Single();
-						return (
-								t.GetConstructor(new[] { typeof(Task<>).MakeGenericType(valueType) }),
-								t.GetConstructor(new[] { valueType })
-						);
-					});
-		}
 
 		private readonly ConcurrentDictionary<Type, ParameterExpression> varAwaiter = new();
 
-		protected StateMachineBuilderBase(LambdaExpression lambda, Type resultType, Type breakType) {
-			this.ResultType = resultType;
+		protected StateMachineBuilderBase(Expressions.StateMachineLambdaExpression lambda, Type breakType, DebugInfoGenerator debugInfoGenerator) {
 			this.Lambda = lambda;
 			this.VarState = Expression.Variable(typeof(int), "state");
 			this.VarResumeState = Expression.Variable(typeof(int), "resumeState");
 			this.VarException = Expression.Variable(typeof(Exception), "exception");
 			this.LblBreak = Expression.Label(breakType ?? typeof(void), ":break");
+			this.DebugInfoGenerator = debugInfoGenerator;
 		}
 
 		public ParameterExpression GetVarAwaiter(Type awaiterType) {
-			Debug.Assert(awaiterType.IsAwaiter());
+			System.Diagnostics.Debug.Assert(awaiterType.IsAwaiter());
 			return this.varAwaiter.GetOrAdd(awaiterType, static t => Expression.Variable(t, "awaiter"));
+		}
+
+		public DebugInfoGenerator DebugInfoGenerator {
+			get;
 		}
 
 		public ParameterExpression VarException {
@@ -91,38 +64,28 @@ namespace bsn.AsyncLambdaExpression {
 			get;
 		}
 
-		protected LambdaExpression Lambda {
+		protected Expressions.StateMachineLambdaExpression Lambda {
 			get;
 		}
 
-		protected ParameterExpression VarTaskCompletionSource {
-			get;
-			init;
-		}
-
-		protected Type ResultType {
-			get;
-		}
-
-		protected IEnumerable<ParameterExpression> GetVars() {
+		protected virtual IEnumerable<ParameterExpression> GetVars() {
 			return this.varAwaiter
 					.Values
 					.Append(this.VarState)
 					.Append(this.VarResumeState)
 					.Append(this.VarContinuation)
-					.Append(this.VarException)
-					.Append(this.VarTaskCompletionSource);
+					.Append(this.VarException);
 		}
 
-		public abstract Expression CreateStateMachineBody(bool debug);
+		public abstract Expression CreateStateMachineBody();
 
 		public abstract Expression HandleException(ParameterExpression varException);
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		protected Expression StateBodyExpressionDebug(MachineState state, Expression finallyOnly, bool debug) {
+		protected Expression StateBodyExpressionDebug(MachineState state, Expression finallyOnly) {
 			var result = this.StateBodyExpression(state, finallyOnly);
 #if DEBUG
-			if (debug && !string.IsNullOrEmpty(state.Name)) {
+			if (this.DebugInfoGenerator != null && !string.IsNullOrEmpty(state.Name)) {
 				return Expression.Block(
 						Expression.Constant(state.Name),
 						result);

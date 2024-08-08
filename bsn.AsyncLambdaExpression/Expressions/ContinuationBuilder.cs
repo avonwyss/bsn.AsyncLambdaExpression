@@ -3,12 +3,13 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
 using bsn.AsyncLambdaExpression.Collections;
 
 namespace bsn.AsyncLambdaExpression.Expressions {
-	internal partial class ContinuationBuilder: ExpressionVisitor {
+	internal partial class ContinuationBuilder: ExpressionVisitor, IAsyncExpressionVisitor, IIteratorExpressionVisitor {
 		protected enum FiberMode {
 			Continuous,
 			Standalone,

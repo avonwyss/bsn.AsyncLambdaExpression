@@ -7,24 +7,21 @@ using System.Threading.Tasks;
 
 namespace bsn.AsyncLambdaExpression.Enumerable {
 	public class AsyncEnumerableSource<T>: IAsyncEnumerable<T> {
-		public delegate ValueTask<bool> MoveNextFunc(bool dispose, StrongBox<T> current);
+		private readonly Func<CancellationToken, Func<bool, StrongBox<T>, ValueTask<bool>>> getEnumeratorFunc;
 
-		private readonly Func<CancellationToken, MoveNextFunc> getEnumeratorFunc;
-
-		public AsyncEnumerableSource(Func<CancellationToken, MoveNextFunc> getEnumeratorFunc) {
+		public AsyncEnumerableSource(Func<CancellationToken, Func<bool, StrongBox<T>, ValueTask<bool>>> getEnumeratorFunc) {
 			this.getEnumeratorFunc = getEnumeratorFunc;
 		}
 
 		private class AsyncEnumerator: StrongBox<T>, IAsyncEnumerator<T> {
-			private readonly MoveNextFunc moveNextFunc;
+			private readonly Func<bool, StrongBox<T>, ValueTask<bool>> moveNextFunc;
 
-			public AsyncEnumerator(MoveNextFunc moveNextFunc) {
+			public AsyncEnumerator(Func<bool, StrongBox<T>, ValueTask<bool>> moveNextFunc) {
 				this.moveNextFunc = moveNextFunc;
 			}
 
-			[MethodImpl(MethodImplOptions.AggressiveInlining)]
-			public ValueTask DisposeAsync() {
-				return new ValueTask(this.moveNextFunc(true, this).AsTask());
+			public async ValueTask DisposeAsync() {
+				await this.moveNextFunc(true, this).ConfigureAwait(false);
 			}
 
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
